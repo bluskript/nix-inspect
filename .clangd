@@ -1,0 +1,3 @@
+CompileFlags:
+  Add: [-std=c++20, U_FORTIFY_SOURCE, -Denable_cplusplus=ON]
+  Compiler: gcc
