@@ -10,59 +10,61 @@ pub struct UpdateContext {
 }
 
 impl UpdateContext {
-	pub fn maybe_reeval_parent(&self, model: &Model) {
-		if let Some(BrowserStackItem::BrowserPath(path)) = model.visit_stack.prev_item() {
-			if model.path_data.get(path).is_none() {
-				let req_tx = self.req_tx.clone();
-				let path = path.clone();
-				std::thread::spawn(move || {
-					let _ = req_tx.send(path);
-				});
-			}
+	pub fn maybe_reeval_path(&self, path: &BrowserPath, model: &Model) {
+		if model.path_data.get(&path).is_none() {
+			let req_tx = self.req_tx.clone();
+			let path = path.clone();
+			std::thread::spawn(move || {
+				let _ = req_tx.send(path);
+			});
 		}
 	}
 
-	pub fn maybe_reeval_selection(&self, model: &Model) {
-		self.maybe_reeval_parent(model);
-		let current_path = match model.visit_stack.current() {
+	pub fn maybe_reeval_parent(&self, model: &Model) {
+		if let Some(BrowserStackItem::BrowserPath(path)) = model.visit_stack.prev_item() {
+			self.maybe_reeval_path(path, model);
+		}
+	}
+
+	pub fn maybe_reeval_selection_browser(&self, p: &BrowserPath, model: &Model) {
+		let current_value = match model.path_data.get(&p) {
 			Some(x) => x,
 			None => return,
-		};
-		let current_value = match model.path_data.get(&current_path) {
-			Some(x) => x,
-			None => {
-				let req_tx = self.req_tx.clone();
-				let current_path = current_path.clone();
-				std::thread::spawn(move || {
-					let _ = req_tx.send(current_path);
-				});
-				return;
-			}
 		};
 		let list = match current_value {
 			PathData::List(x) => x,
 			_ => return,
 		};
-		let selected = list.selected(&current_path);
-		if model.path_data.get(&selected).is_none()
-			&& list.list.contains(selected.0.last().unwrap())
-		{
-			let req_tx = self.req_tx.clone();
-			std::thread::spawn(move || {
-				let _ = req_tx.send(selected);
-			});
+		let selected = list.selected(&p);
+		if list.list.contains(selected.0.last().unwrap()) {
+			self.maybe_reeval_path(&selected, model);
 		}
 	}
 
-	pub fn maybe_reeval_selected_bookmark(&self, model: &Model) {
-		if let Some(bookmark) = model.selected_bookmark() {
-			if model.path_data.get(&bookmark.path).is_none() {
-				let tx = self.req_tx.clone();
-				let path = bookmark.path.clone();
-				std::thread::spawn(move || {
-					let _ = tx.send(path);
-				});
+	pub fn maybe_reeval_current_selection(
+		&self,
+		current_location: &BrowserStackItem,
+		model: &Model,
+	) {
+		match current_location {
+			BrowserStackItem::BrowserPath(p) => self.maybe_reeval_selection_browser(p, model),
+			BrowserStackItem::Bookmarks => {
+				if let Some(b) = model.selected_bookmark() {
+					self.maybe_reeval_path(&b.path, model);
+				}
 			}
+			BrowserStackItem::Recents => {
+				if let Some(x) = model.selected_recent() {
+					self.maybe_reeval_path(&x, model);
+				}
+			}
+			BrowserStackItem::Root => {}
+		}
+	}
+
+	pub fn maybe_reeval_selection(&self, model: &Model) {
+		if let Some(x) = model.visit_stack.last() {
+			self.maybe_reeval_current_selection(x, model);
 		}
 	}
 
@@ -129,10 +131,6 @@ impl UpdateContext {
 			}
 			Message::NavigatorExit => model.path_navigator_input = InputState::default(),
 			Message::NavigatorInput(ev) => {
-				let current_path = match model.visit_stack.last() {
-					Some(BrowserStackItem::BrowserPath(p)) => p.clone(),
-					_ => return Ok(None),
-				};
 				if let InputState::Active(ref mut x) = model.path_navigator_input {
 					x.handle_key_event(ev);
 					if ev.code != KeyCode::Tab && ev.code != KeyCode::BackTab {
@@ -141,47 +139,13 @@ impl UpdateContext {
 					match ev.code {
 						KeyCode::Char(_) | KeyCode::Backspace => {
 							let path = BrowserPath::from(x.input.clone());
-							let path_len_diff = path.0.len() as i32 - current_path.0.len() as i32;
-							match path_len_diff {
-								diff if diff == 1 => {
-									let current_list =
-										match model.path_data.current_list_mut(&current_path) {
-											Some(x) => x,
-											None => return Ok(None),
-										};
-									if let Some(position) = current_list
-										.list
-										.iter()
-										.closest_item(&x.input, current_list.cursor)
-									{
-										current_list.cursor = position;
-									}
-
-									if let Some(target) = path.0.last() {
-										if current_list.list.contains(target) {
-											model.visit_stack.push_path(path);
-											model.update_parent_selection(current_path);
-											self.maybe_reeval_selection(model);
-										}
-									}
-								}
-								diff if diff == -1 => {
-									model.visit_stack.pop();
-									model.update_parent_selection(current_path);
-									self.maybe_reeval_selection(model);
-								}
-								_ => {
-									if let Some(new_path) = path.parent() {
-										model.update_parent_selection(new_path);
-										self.maybe_reeval_selection(model);
-										self.maybe_reeval_parent(model);
-									}
-								}
+							if let Some(new_path) = path.parent() {
+								tracing::debug!("{:?}", new_path);
+								self.maybe_reeval_path(&new_path, model);
+								model.update_parent_selection(new_path);
+								self.maybe_reeval_parent(model);
+								self.maybe_reeval_selection(model);
 							}
-							// let req_tx = self.req_tx.clone();
-							// std::thread::spawn(move || {
-							//     let _ = req_tx.send(path);
-							// });
 						}
 						KeyCode::Tab | KeyCode::BackTab => {
 							let path = BrowserPath::from(x.input.clone());
@@ -253,21 +217,6 @@ impl UpdateContext {
 					}
 				}
 			}
-			Message::ListUp => match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
-				BrowserStackItem::Root => {
-					select_prev(&mut model.root_view_state, 2);
-				}
-				BrowserStackItem::BrowserPath(p) => {
-					if let Some(list) = model.path_data.current_list_mut(&p) {
-						list.cursor = prev(list.cursor, list.list.len());
-					}
-					self.maybe_reeval_selection(model);
-				}
-				BrowserStackItem::Bookmarks => {
-					select_prev(&mut model.bookmark_view_state, model.bookmarks.len());
-					self.maybe_reeval_selected_bookmark(model);
-				}
-			},
 			Message::Back => {
 				model.visit_stack.pop();
 				self.maybe_reeval_selection(model);
@@ -277,11 +226,20 @@ impl UpdateContext {
 					match model.root_view_state.selected() {
 						Some(0) => {
 							model.visit_stack.push(BrowserStackItem::Bookmarks);
-							self.maybe_reeval_selected_bookmark(model);
+							self.maybe_reeval_current_selection(
+								&BrowserStackItem::Bookmarks,
+								model,
+							);
 						}
-						Some(1) => model
-							.visit_stack
-							.push_path(BrowserPath::from("nixosConfigurations".to_string())),
+						Some(1) => {
+							model.visit_stack.push(BrowserStackItem::Recents);
+							self.maybe_reeval_current_selection(&BrowserStackItem::Recents, model);
+						}
+						Some(2) => {
+							let x = BrowserPath::from("nixosConfigurations".to_string());
+							self.maybe_reeval_selection_browser(&x, model);
+							model.visit_stack.push_path(x);
+						}
 						_ => unreachable!(),
 					};
 				}
@@ -291,20 +249,49 @@ impl UpdateContext {
 						.current_list(&p)
 						.and_then(|list| list.list.get(list.cursor))
 					{
-						model.visit_stack.push_path(p.child(selected_item.clone()));
+						let x = p.child(selected_item.clone());
+						self.maybe_reeval_selection_browser(&x, model);
+						model.visit_stack.push_path(x);
 					}
-					self.maybe_reeval_selection(model);
 				}
 				BrowserStackItem::Bookmarks => {
 					if let Some(x) = model.selected_bookmark() {
+						self.maybe_reeval_selection_browser(&x.path, model);
 						model.visit_stack.push_path(x.path.clone());
 					}
 				}
+				BrowserStackItem::Recents => {
+					if let Some(x) = model.selected_recent() {
+						self.maybe_reeval_selection_browser(&x, model);
+						model.visit_stack.push_path(x.clone());
+					}
+				}
 			},
-			Message::ListDown => {
-				match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
+			Message::ListUp => {
+				let x = model.visit_stack.last().unwrap_or(&BrowserStackItem::Root);
+				match x {
 					BrowserStackItem::Root => {
-						select_next(&mut model.root_view_state, 2);
+						select_prev(&mut model.root_view_state, 3);
+					}
+					BrowserStackItem::BrowserPath(p) => {
+						if let Some(list) = model.path_data.current_list_mut(&p) {
+							list.cursor = prev(list.cursor, list.list.len());
+						}
+					}
+					BrowserStackItem::Bookmarks => {
+						select_prev(&mut model.bookmark_view_state, model.bookmarks.len());
+					}
+					BrowserStackItem::Recents => {
+						select_prev(&mut model.recents_view_state, model.recents.len());
+					}
+				}
+				self.maybe_reeval_current_selection(&x, model);
+			}
+			Message::ListDown => {
+				let x = model.visit_stack.last().unwrap_or(&BrowserStackItem::Root);
+				match x {
+					BrowserStackItem::Root => {
+						select_next(&mut model.root_view_state, 3);
 						if let Some(1) = model.root_view_state.selected() {
 							let req_tx = self.req_tx.clone();
 							std::thread::spawn(move || {
@@ -325,9 +312,12 @@ impl UpdateContext {
 					}
 					BrowserStackItem::Bookmarks => {
 						select_next(&mut model.bookmark_view_state, model.bookmarks.len());
-						self.maybe_reeval_selected_bookmark(model);
+					}
+					BrowserStackItem::Recents => {
+						select_next(&mut model.recents_view_state, model.recents.len());
 					}
 				}
+				self.maybe_reeval_current_selection(&x, model);
 			}
 			Message::Quit => model.running_state = RunningState::Stopped,
 		};

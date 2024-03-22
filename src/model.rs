@@ -15,6 +15,7 @@ pub struct Model {
 
 	pub path_data: PathDataMap,
 	pub bookmarks: Vec<Bookmark>,
+	pub recents: Vec<BrowserPath>,
 
 	pub visit_stack: BrowserStack,
 
@@ -26,6 +27,7 @@ pub struct Model {
 
 	pub root_view_state: ListState,
 	pub bookmark_view_state: ListState,
+	pub recents_view_state: ListState,
 }
 
 impl Model {
@@ -33,6 +35,12 @@ impl Model {
 		self.bookmark_view_state
 			.selected()
 			.and_then(|i| self.bookmarks.get(i))
+	}
+
+	pub fn selected_recent(&self) -> Option<&BrowserPath> {
+		self.recents_view_state
+			.selected()
+			.and_then(|i| self.recents.get(i))
 	}
 
 	/// Update the selection of the parent to match the current path
@@ -50,6 +58,7 @@ impl Model {
 			path = parent;
 		}
 		new_stack.push(BrowserStackItem::Root);
+		*self.root_view_state.selected_mut() = Some(2);
 		new_stack.reverse();
 		*self.visit_stack = new_stack;
 	}

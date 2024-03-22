@@ -21,10 +21,10 @@ pub fn view(model: &Model, f: &mut Frame) {
 
 	let previous_list_block =
 		Block::default().borders(Borders::TOP | Borders::BOTTOM | Borders::LEFT);
-	let inner = previous_list_block.inner(miller_layout[0]);
+	let previous_inner = previous_list_block.inner(miller_layout[0]);
 	f.render_widget(previous_list_block, miller_layout[0]);
 
-	render_previous_stack(model, f, inner);
+	render_previous_stack(model, f, previous_inner);
 
 	match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
 		BrowserStackItem::BrowserPath(p) => match model.path_data.get(&p) {
@@ -60,57 +60,66 @@ pub fn view(model: &Model, f: &mut Frame) {
 				let _ = render_preview(f, model, miller_layout[2], p);
 			}
 		},
-		BrowserStackItem::Root => {
+		x @ _ => {
 			let current_list_block = current_frame();
-			let inner = current_list_block.inner(miller_layout[1]);
+			let current_inner = current_list_block.inner(miller_layout[1]);
 			f.render_widget(current_list_block, miller_layout[1]);
-			render_root(model, f, inner);
 
 			let preview_frame = preview_frame();
-			let inner = preview_frame.inner(miller_layout[2]);
+			let preview_inner = preview_frame.inner(miller_layout[2]);
 			f.render_widget(preview_frame, miller_layout[2]);
-			match model.root_view_state.selected() {
-				// Bookmarks
-				Some(0) => {
-					render_bookmarks(model, f, inner);
-				}
-				// Root
-				Some(1) => {
-					if let Some(PathData::List(current_list_data)) = model
-						.path_data
-						.get(&BrowserPath::from("nixosConfigurations".to_string()))
-					{
-						render_list(
-							f,
-							current_list_data,
-							inner,
-							Some(&model.search_input),
-							Some(&model.path_navigator_input),
-							&model.prev_tab_completion,
-						);
+
+			match x {
+				BrowserStackItem::Root => {
+					render_root(model, f, current_inner);
+
+					match model.root_view_state.selected() {
+						// Bookmarks
+						Some(0) => {
+							render_bookmarks(model, f, preview_inner);
+						}
+						Some(1) => {
+							render_recents(model, f, preview_inner);
+						}
+						// Root
+						Some(2) => {
+							if let Some(PathData::List(current_list_data)) = model
+								.path_data
+								.get(&BrowserPath::from("nixosConfigurations".to_string()))
+							{
+								render_list(
+									f,
+									current_list_data,
+									preview_inner,
+									Some(&model.search_input),
+									Some(&model.path_navigator_input),
+									&model.prev_tab_completion,
+								);
+							}
+						}
+						_ => {}
 					}
 				}
-				_ => {}
-			}
-		}
-		BrowserStackItem::Bookmarks => {
-			render_root(model, f, inner);
+				BrowserStackItem::Bookmarks => {
+					render_bookmarks(model, f, current_inner);
 
-			let current_list_block = current_frame();
-			let inner = current_list_block.inner(miller_layout[1]);
-			f.render_widget(current_list_block, miller_layout[1]);
-			render_bookmarks(model, f, inner);
-
-			let preview_frame = preview_frame();
-			let inner = preview_frame.inner(miller_layout[2]);
-			f.render_widget(preview_frame, miller_layout[2]);
-			if let Some(data) = model
-				.bookmark_view_state
-				.selected()
-				.and_then(|i| model.bookmarks.get(i))
-				.and_then(|x| model.path_data.get(&x.path))
-			{
-				render_value_preview(f, data, inner);
+					if let Some(data) = model
+						.selected_bookmark()
+						.and_then(|x| model.path_data.get(&x.path))
+					{
+						render_value_preview(f, data, preview_inner);
+					}
+				}
+				BrowserStackItem::Recents => {
+					render_recents(model, f, current_inner);
+					if let Some(data) = model
+						.selected_bookmark()
+						.and_then(|x| model.path_data.get(&x.path))
+					{
+						render_value_preview(f, data, preview_inner);
+					}
+				}
+				BrowserStackItem::BrowserPath(_) => unreachable!(),
 			}
 		}
 	}
@@ -122,6 +131,7 @@ pub fn render_previous_stack(model: &Model, f: &mut Frame, inner: Rect) {
 		Some(BrowserStackItem::BrowserPath(p)) => render_previous_list(f, model, inner, p),
 		Some(BrowserStackItem::Bookmarks) => render_bookmarks(model, f, inner),
 		Some(BrowserStackItem::Root) => render_root(model, f, inner),
+		Some(BrowserStackItem::Recents) => render_recents(model, f, inner),
 		None => {}
 	}
 }
@@ -132,10 +142,18 @@ pub fn with_selected_style(x: List) -> List {
 
 pub fn render_root(model: &Model, f: &mut Frame, inner: Rect) {
 	f.render_stateful_widget(
-		with_selected_style(List::new(["Bookmarks", "Root"])),
+		with_selected_style(List::new(["Bookmarks", "Recents", "Root"])),
 		inner,
 		&mut model.root_view_state.clone(),
 	);
+}
+
+pub fn render_recents(model: &Model, f: &mut Frame, inner: Rect) {
+	f.render_stateful_widget(
+		with_selected_style(List::new(model.recents.iter().map(|x| x.to_expr()))),
+		inner,
+		&mut model.recents_view_state.clone(),
+	)
 }
 
 pub fn render_bookmarks(model: &Model, f: &mut Frame, inner: Rect) {
