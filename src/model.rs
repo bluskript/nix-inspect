@@ -138,6 +138,8 @@ impl BrowserStack {
 pub enum Message {
 	Data(BrowserPath, PathData),
 	CurrentPath(BrowserPath),
+	PageDown,
+	PageUp,
 	SearchEnter,
 	SearchExit,
 	SearchInput(KeyEvent),

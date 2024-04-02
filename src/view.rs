@@ -13,7 +13,13 @@ use ratatui::{
 
 use crate::model::{BrowserPath, BrowserStackItem, InputState, ListData, Model, PathData};
 
-pub fn view(model: &Model, f: &mut Frame) {
+/// View data that should be provided to the update handler (for page-up / page-down behavior)
+#[derive(Default)]
+pub struct ViewData {
+	pub current_list_height: u16,
+}
+
+pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 	let miller_layout = Layout::default()
 		.direction(Direction::Horizontal)
 		.constraints(Constraint::from_percentages([20, 40, 20]))
@@ -25,6 +31,8 @@ pub fn view(model: &Model, f: &mut Frame) {
 	f.render_widget(previous_list_block, miller_layout[0]);
 
 	render_previous_stack(model, f, previous_inner);
+
+	let mut view_data = ViewData::default();
 
 	match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
 		BrowserStackItem::BrowserPath(p) => match model.path_data.get(&p) {
@@ -40,12 +48,14 @@ pub fn view(model: &Model, f: &mut Frame) {
 					.title(data.get_type());
 				let outer = miller_layout[2].union(miller_layout[1]);
 				let inner = block.inner(outer);
+				view_data.current_list_height = inner.height;
 				f.render_widget(block, outer);
 				let _ = render_value_preview(f, data, inner);
 			}
 			x @ _ => {
 				let current_list_block = current_frame();
 				let inner = current_list_block.inner(miller_layout[1]);
+				view_data.current_list_height = inner.height;
 				f.render_widget(current_list_block, miller_layout[1]);
 				if let Some(PathData::List(current_path_data)) = x {
 					let _ = render_list(
@@ -63,6 +73,7 @@ pub fn view(model: &Model, f: &mut Frame) {
 		x @ _ => {
 			let current_list_block = current_frame();
 			let current_inner = current_list_block.inner(miller_layout[1]);
+			view_data.current_list_height = current_inner.height;
 			f.render_widget(current_list_block, miller_layout[1]);
 
 			let preview_frame = preview_frame();
@@ -123,7 +134,10 @@ pub fn view(model: &Model, f: &mut Frame) {
 			}
 		}
 	}
+
 	render_inputs(f, model, f.size());
+
+	view_data
 }
 
 pub fn render_previous_stack(model: &Model, f: &mut Frame, inner: Rect) {

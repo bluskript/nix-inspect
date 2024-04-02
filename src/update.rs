@@ -1,8 +1,11 @@
 use crossterm::event::KeyCode;
 
-use crate::model::{
-	next, prev, select_next, select_prev, Bookmark, BrowserPath, BrowserStackItem, InputModel,
-	InputState, Message, Model, PathData, RunningState,
+use crate::{
+	model::{
+		next, prev, select_next, select_prev, Bookmark, BrowserPath, BrowserStackItem, InputModel,
+		InputState, Message, Model, PathData, RunningState,
+	},
+	view::ViewData,
 };
 
 pub struct UpdateContext {
@@ -70,6 +73,7 @@ impl UpdateContext {
 
 	pub fn update(
 		&mut self,
+		view_data: &ViewData,
 		model: &mut Model,
 		msg: Message,
 	) -> color_eyre::Result<Option<Message>> {
@@ -81,6 +85,26 @@ impl UpdateContext {
 			Message::CurrentPath(p) => {
 				model.visit_stack.push(BrowserStackItem::BrowserPath(p));
 				self.maybe_reeval_selection(model);
+			}
+			Message::PageUp => {
+				if let Some(x) = model.visit_stack.current() {
+					if let Some(list) = model.path_data.current_list_mut(x) {
+						list.cursor = list
+							.cursor
+							.saturating_sub(view_data.current_list_height.max(1) as usize / 2)
+							as usize;
+					}
+				}
+			}
+			Message::PageDown => {
+				if let Some(x) = model.visit_stack.current() {
+					if let Some(list) = model.path_data.current_list_mut(x) {
+						list.cursor = (list.cursor
+							+ (view_data.current_list_height.max(1) / 2) as usize)
+							.max(0)
+							.min(list.list.len() - 1);
+					}
+				}
 			}
 			Message::SearchEnter => {
 				model.search_input = InputState::Active(InputModel {

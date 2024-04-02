@@ -10,6 +10,8 @@ use update::UpdateContext;
 use view::view;
 use workers::WorkerHost;
 
+use crate::view::ViewData;
+
 pub mod key_handler;
 pub mod logging;
 pub mod model;
@@ -90,14 +92,17 @@ fn main() -> color_eyre::Result<()> {
 
 	while model.read().running_state != RunningState::Stopped {
 		// Render the current view
-		terminal.draw(|f| view(&model.read(), f))?;
+		let mut view_data: ViewData = ViewData::default();
+		terminal.draw(|f| {
+			view_data = view(&model.read(), f);
+		})?;
 
 		let mut current_msg = Some(rx.recv()?);
 
 		// Process updates as long as they return a non-None message
 		while let Some(msg) = current_msg {
 			tracing::info!("{:?}", msg);
-			if let Ok(msg) = update_context.update(&mut model.write(), msg) {
+			if let Ok(msg) = update_context.update(&view_data, &mut model.write(), msg) {
 				current_msg = msg;
 			} else {
 				current_msg = None;

@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use parking_lot::RwLock;
 
 use crate::model::{InputState, Message, Model};
@@ -67,7 +67,19 @@ fn handle_normal_input(key: event::KeyEvent) -> Option<Message> {
 		KeyCode::Char('l') | KeyCode::Right => Some(Message::Enter),
 		KeyCode::Char('f') | KeyCode::Char('/') => Some(Message::SearchEnter),
 		KeyCode::Char('s') => Some(Message::BookmarkInputEnter),
-		KeyCode::Char('d') => Some(Message::DeleteBookmark),
+		KeyCode::Char('d') => {
+			if key.modifiers.contains(KeyModifiers::CONTROL) {
+				Some(Message::PageDown)
+			} else {
+				Some(Message::DeleteBookmark)
+			}
+		}
+		KeyCode::Char('u') => {
+			if key.modifiers.contains(KeyModifiers::CONTROL) {
+				return Some(Message::PageUp);
+			}
+			None
+		}
 		KeyCode::Char('.') => Some(Message::NavigatorEnter),
 		_ => None,
 	}
