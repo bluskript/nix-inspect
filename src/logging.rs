@@ -16,7 +16,7 @@ lazy_static! {
 	pub static ref LOG_FILE: String = format!("{}.log", env!("CARGO_PKG_NAME"));
 }
 
-fn project_directory() -> Option<ProjectDirs> {
+pub fn project_directory() -> Option<ProjectDirs> {
 	ProjectDirs::from("dev", "blusk", env!("CARGO_PKG_NAME"))
 }
 

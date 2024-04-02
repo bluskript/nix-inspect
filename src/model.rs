@@ -6,6 +6,7 @@ use std::{
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{text::Text, widgets::ListState};
+use serde::{Deserialize, Serialize};
 
 use crate::workers::NixValue;
 
@@ -21,6 +22,7 @@ pub struct Model {
 
 	pub search_input: InputState,
 	pub path_navigator_input: InputState,
+	pub new_bookmark_input: InputState,
 
 	/// TODO: things that the architecture doesnt handle all that well
 	pub prev_tab_completion: Option<String>,
@@ -142,6 +144,11 @@ pub enum Message {
 	NavigatorEnter,
 	NavigatorExit,
 	NavigatorInput(KeyEvent),
+	BookmarkInputEnter,
+	BookmarkInputExit,
+	BookmarkInput(KeyEvent),
+	CreateBookmark,
+	DeleteBookmark,
 	Back,
 	Enter,
 	ListUp,
@@ -157,7 +164,7 @@ pub enum BrowserStackItem {
 	BrowserPath(BrowserPath),
 }
 
-#[derive(Debug, Default, Eq, Hash, PartialEq, Clone)]
+#[derive(Debug, Default, Eq, Hash, PartialEq, Clone, Deserialize, Serialize)]
 pub struct BrowserPath(pub Vec<String>);
 
 impl BrowserPath {
@@ -281,7 +288,7 @@ impl PathData {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Bookmark {
 	pub display: String,
 	pub path: BrowserPath,

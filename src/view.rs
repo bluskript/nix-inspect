@@ -123,7 +123,7 @@ pub fn view(model: &Model, f: &mut Frame) {
 			}
 		}
 	}
-	render_search(f, model, f.size());
+	render_inputs(f, model, f.size());
 }
 
 pub fn render_previous_stack(model: &Model, f: &mut Frame, inner: Rect) {
@@ -247,7 +247,7 @@ pub fn render_previous_list(f: &mut Frame, model: &Model, inner: Rect, p: &Brows
 	);
 }
 
-pub fn render_search(f: &mut Frame, model: &Model, inner: Rect) {
+pub fn render_inputs(f: &mut Frame, model: &Model, inner: Rect) {
 	// Offset from the bottom, in case there are two parallel inputs being displayed
 	let mut offset = 1;
 
@@ -265,6 +265,17 @@ pub fn render_search(f: &mut Frame, model: &Model, inner: Rect) {
 	}
 	if let InputState::Active(navigator_state) = &model.path_navigator_input {
 		let render_text = format!("Goto: {}", navigator_state.input.clone());
+		f.render_widget(
+			Paragraph::new(&render_text[render_text.len().saturating_sub(inner.width as usize)..])
+				.alignment(Alignment::Left)
+				.fg(Color::Gray),
+			Rect::new(inner.left(), inner.bottom() - offset, inner.width, 1),
+		);
+		offset += 1;
+	}
+
+	if let InputState::Active(bookmark_input_state) = &model.new_bookmark_input {
+		let render_text = format!("bookmark name: {}", bookmark_input_state.input.clone());
 		f.render_widget(
 			Paragraph::new(&render_text[render_text.len().saturating_sub(inner.width as usize)..])
 				.alignment(Alignment::Left)

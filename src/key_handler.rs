@@ -27,6 +27,8 @@ pub fn handle_key(key: event::KeyEvent, model: &Model) -> Option<Message> {
 		handle_search_input(key)
 	} else if let InputState::Active(_) = model.path_navigator_input {
 		handle_navigator_input(key)
+	} else if let InputState::Active(_) = model.new_bookmark_input {
+		handle_bookmark_input(key)
 	} else {
 		handle_normal_input(key)
 	}
@@ -37,6 +39,14 @@ fn handle_search_input(key: event::KeyEvent) -> Option<Message> {
 		KeyCode::Esc => Some(Message::SearchExit),
 		KeyCode::Enter => Some(Message::Enter),
 		_ => Some(Message::SearchInput(key)),
+	}
+}
+
+fn handle_bookmark_input(key: event::KeyEvent) -> Option<Message> {
+	match key.code {
+		KeyCode::Esc => Some(Message::BookmarkInputExit),
+		KeyCode::Enter => Some(Message::CreateBookmark),
+		_ => Some(Message::BookmarkInput(key)),
 	}
 }
 
@@ -56,6 +66,8 @@ fn handle_normal_input(key: event::KeyEvent) -> Option<Message> {
 		KeyCode::Char('k') | KeyCode::Up => Some(Message::ListUp),
 		KeyCode::Char('l') | KeyCode::Right => Some(Message::Enter),
 		KeyCode::Char('f') | KeyCode::Char('/') => Some(Message::SearchEnter),
+		KeyCode::Char('s') => Some(Message::BookmarkInputEnter),
+		KeyCode::Char('d') => Some(Message::DeleteBookmark),
 		KeyCode::Char('.') => Some(Message::NavigatorEnter),
 		_ => None,
 	}

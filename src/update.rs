@@ -1,8 +1,8 @@
 use crossterm::event::KeyCode;
 
 use crate::model::{
-	next, prev, select_next, select_prev, BrowserPath, BrowserStackItem, InputModel, InputState,
-	Message, Model, PathData, RunningState,
+	next, prev, select_next, select_prev, Bookmark, BrowserPath, BrowserStackItem, InputModel,
+	InputState, Message, Model, PathData, RunningState,
 };
 
 pub struct UpdateContext {
@@ -117,6 +117,27 @@ impl UpdateContext {
 					}
 				}
 			}
+			Message::BookmarkInputEnter => {
+				let path_str = model
+					.visit_stack
+					.current()
+					.and_then(|x| model.path_data.current_list(x))
+					.and_then(|x| x.list.get(x.cursor).cloned())
+					.unwrap_or("".to_string());
+				model.new_bookmark_input = InputState::Active(InputModel {
+					typing: false,
+					cursor_position: path_str.len(),
+					input: path_str.to_string(),
+				})
+			}
+			Message::BookmarkInputExit => {
+				model.new_bookmark_input = InputState::Normal;
+			}
+			Message::BookmarkInput(key) => {
+				if let InputState::Active(ref mut x) = model.new_bookmark_input {
+					x.handle_key_event(key);
+				}
+			}
 			Message::NavigatorEnter => {
 				let current_path = model.visit_stack.current();
 				let path_str = current_path
@@ -215,6 +236,31 @@ impl UpdateContext {
 						KeyCode::Enter => x.typing = false,
 						_ => {}
 					}
+				}
+			}
+			Message::CreateBookmark => {
+				if let Some(p) = model.visit_stack.current() {
+					if let InputState::Active(state) = &model.new_bookmark_input {
+						let name = &state.input;
+						model.bookmarks.push(Bookmark {
+							display: if name.len() > 0 {
+								name.to_string()
+							} else {
+								p.0.last().unwrap_or(&"".to_string()).clone()
+							},
+							path: p.clone(),
+						});
+						model.new_bookmark_input = InputState::Normal;
+					}
+				}
+			}
+			Message::DeleteBookmark => {
+				if let Some(i) = model.bookmark_view_state.selected() {
+					model.bookmarks.remove(i);
+					let bookmarks_len = model.bookmarks.len();
+					let selected = model.bookmark_view_state.selected_mut();
+					let new = selected.map(|x| x.min(bookmarks_len - 1));
+					*selected = new;
 				}
 			}
 			Message::Back => {
