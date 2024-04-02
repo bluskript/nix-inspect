@@ -5,7 +5,8 @@ Interactive nix config viewer
 nix run github:bluskript/nix-inspect
 ```
 
-![[preview.mp4]]
+https://github.com/bluskript/nix-inspect/assets/52386117/a18c6038-f954-451b-a8cd-26b30a197165
+
 ### Features
 - 🪡 Path navigator to quickly type in or paste a path which live updates as you type
 - 🔍Fuzzy search in the current directory
