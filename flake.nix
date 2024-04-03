@@ -26,6 +26,7 @@
         crateOutputs = config.nci.outputs."nix-inspect";
       in {
         devShells.default = crateOutputs.devShell.overrideAttrs (old: {
+          WORKER_BINARY_PATH = "./worker/build/nix-inspect";
           packages =
             (old.packages or [])
             ++ (with pkgs; [

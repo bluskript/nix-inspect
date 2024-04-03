@@ -4,7 +4,6 @@
 #include <ostream>
 
 #include "inspector.hh"
-#include "shared.hh"
 
 volatile sig_atomic_t stop;
 

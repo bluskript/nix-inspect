@@ -31,7 +31,7 @@ pub enum NixValue {
 	External,
 }
 
-pub const WORKER_BINARY_PATH: &str = "./worker/build/nix-inspect";
+pub const WORKER_BINARY_PATH: &str = env!("WORKER_BINARY_PATH");
 
 pub struct WorkerHost {
 	pub tx: kanal::Sender<BrowserPath>,
