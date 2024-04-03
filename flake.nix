@@ -4,12 +4,10 @@
   inputs.nci.inputs.nixpkgs.follows = "nixpkgs";
   inputs.parts.url = "github:hercules-ci/flake-parts";
   inputs.parts.inputs.nixpkgs-lib.follows = "nixpkgs";
-  inputs.nix-input.url = "github:nixos/nix";
 
   outputs = inputs @ {
     parts,
     nci,
-    nix-input,
     ...
   }:
     parts.lib.mkFlake {inherit inputs;} {
@@ -37,7 +35,7 @@
               boost
               meson
               nlohmann_json
-              nix-input.packages.${system}.default
+              nixVersions.nix_2_19.dev
             ]);
         });
         packages.default = crateOutputs.packages.release;

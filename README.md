@@ -26,9 +26,9 @@ As of now the project remains unpackaged in `nixpkgs`, so the recommended instal
 and then reference it in your `environment.systemPackages`:
 ```nix
 {inputs, ...}: {
-	environment.systemPackages = [
-		inputs.nix-inspect.packages.default
-	];
+  environment.systemPackages = [
+    inputs.nix-inspect.packages.default
+  ];
 }
 ```
 

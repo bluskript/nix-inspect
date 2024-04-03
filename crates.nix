@@ -18,7 +18,7 @@
       buildInputs = with pkgs; [
         boost
         nlohmann_json
-        inputs.nix-input.packages.${system}.default
+        nixVersions.nix_2_19.dev
       ];
 
       configurePhase = "meson setup build";
