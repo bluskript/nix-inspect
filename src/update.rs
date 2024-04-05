@@ -174,9 +174,9 @@ impl UpdateContext {
 			}
 			Message::NavigatorEnter => {
 				let current_path = model.visit_stack.current();
-				let path_str = current_path
+				let path_str = ".".to_string() + &current_path
 					.map(|x| x.to_expr())
-					.unwrap_or(".nixosConfigurations".to_string())
+					.unwrap_or("nixosConfigurations".to_string())
 					+ ".";
 				model.path_navigator_input = InputState::Active(InputModel {
 					typing: false,
