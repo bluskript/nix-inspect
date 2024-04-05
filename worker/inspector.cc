@@ -18,18 +18,17 @@
 
 const auto MAX_SIZE = 32768;
 
-NixInspector::NixInspector()
+NixInspector::NixInspector(std::string expr)
     : state(getEvalState().get_ptr().get()),
       vRoot(*state->allocValue()),
       autoArgs(*state->buildBindings(0).finish()) {
+  // auto attrs = state->buildBindings(1);
+  // Value* root = state->allocValue();
   state->eval(
-      state->parseExprFromString(
-          std::string("builtins.getFlake (toString /etc/nixos)"),
-          // std::string("builtins.getFlake \"github:nixos/nixpkgs\""),
-          state->rootPath(CanonPath::root)
-      ),
-      vRoot
+      state->parseExprFromString(expr, state->rootPath(CanonPath::root)), vRoot
   );
+  // attrs.insert(state->symbols.create("root"), root);
+  // vRoot.mkAttrs(attrs.finish());
 }
 
 // void NixInspector::initEnv() {
@@ -66,7 +65,12 @@ NixInspector::NixInspector()
 //   return vRes;
 // }
 
-std::shared_ptr<Value> NixInspector::inspect(const std::string &attrPath) {
+std::shared_ptr<Value> NixInspector::inspect(std::string &attrPath) {
+  // if (attrPath.length() == 0) {
+  //   attrPath = "root";
+  // } else {
+  //   attrPath = "root." + attrPath;
+  // }
   Value &v(
       *findAlongAttrPath(*state, std::string(attrPath), autoArgs, vRoot).first
   );
@@ -139,10 +143,6 @@ void init_nix_inspector() {
   initGC();
   logger = new CaptureLogger();
 }
-std::unique_ptr<NixInspector> new_nix_inspector() {
-  return std::unique_ptr<NixInspector>(new NixInspector());
-}
-
 ValueType NixInspector::v_type(const Value &value) { return value.type(); }
 
 // Gets a attribute at a specific name and if the passed value is a thunk it

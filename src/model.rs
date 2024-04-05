@@ -6,17 +6,18 @@ use std::{
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{text::Text, widgets::ListState};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::workers::NixValue;
+use crate::{workers::NixValue, Config};
 
 #[derive(Default, Debug)]
 pub struct Model {
 	pub running_state: RunningState,
 
 	pub path_data: PathDataMap,
-	pub bookmarks: Vec<Bookmark>,
 	pub recents: Vec<BrowserPath>,
+
+	pub config: Config,
 
 	pub visit_stack: BrowserStack,
 
@@ -36,7 +37,7 @@ impl Model {
 	pub fn selected_bookmark(&self) -> Option<&Bookmark> {
 		self.bookmark_view_state
 			.selected()
-			.and_then(|i| self.bookmarks.get(i))
+			.and_then(|i| self.config.bookmarks.get(i))
 	}
 
 	pub fn selected_recent(&self) -> Option<&BrowserPath> {
@@ -166,8 +167,27 @@ pub enum BrowserStackItem {
 	BrowserPath(BrowserPath),
 }
 
-#[derive(Debug, Default, Eq, Hash, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, Default, Eq, Hash, PartialEq, Clone)]
 pub struct BrowserPath(pub Vec<String>);
+
+impl Serialize for BrowserPath {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		serializer.collect_str(&self.to_expr())
+	}
+}
+
+impl<'de> Deserialize<'de> for BrowserPath {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		let s = String::deserialize(deserializer)?;
+		Ok(BrowserPath::from(s))
+	}
+}
 
 impl BrowserPath {
 	pub fn parent(&self) -> Option<BrowserPath> {
@@ -187,7 +207,11 @@ impl BrowserPath {
 		self
 	}
 	pub fn to_expr(&self) -> String {
-		self.0.join(".")
+		if self.0[0].len() == 0 {
+			self.0[1..].join(".")
+		} else {
+			self.0.join(".")
+		}
 	}
 }
 

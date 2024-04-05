@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::model::BrowserPath;
@@ -7,7 +8,7 @@ use crate::model::BrowserPath;
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "data")]
 pub enum NixValue {
-	#[serde(rename = "1")]
+	#[serde(rename = "0")]
 	Thunk,
 	#[serde(rename = "1")]
 	Int(i64),
@@ -39,7 +40,7 @@ pub struct WorkerHost {
 }
 
 impl WorkerHost {
-	pub fn new() -> WorkerHost {
+	pub fn new(expr: String) -> WorkerHost {
 		let (tx, rx) = kanal::unbounded::<BrowserPath>();
 		let (result_tx, result_rx) = kanal::unbounded();
 
@@ -56,6 +57,8 @@ impl WorkerHost {
 			let mut stdin = child.stdin.take().expect("Failed to open stdin");
 			let stdout = child.stdout.take().expect("Failed to open stdout");
 			let mut reader = BufReader::new(stdout);
+
+			let _ = writeln!(stdin, "{}", expr);
 
 			loop {
 				let received = rx.recv();

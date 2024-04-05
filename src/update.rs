@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crossterm::event::KeyCode;
 
 use crate::{
@@ -6,10 +8,18 @@ use crate::{
 		InputState, Message, Model, PathData, RunningState,
 	},
 	view::ViewData,
+	Config,
 };
 
 pub struct UpdateContext {
 	pub req_tx: kanal::Sender<BrowserPath>,
+	pub config_path: PathBuf,
+}
+
+pub fn save_config(path: PathBuf, config: Config) {
+	std::thread::spawn(move || {
+		let _ = std::fs::write(&path, &serde_json::to_string_pretty(&config).unwrap());
+	});
 }
 
 impl UpdateContext {
@@ -166,7 +176,7 @@ impl UpdateContext {
 				let current_path = model.visit_stack.current();
 				let path_str = current_path
 					.map(|x| x.to_expr())
-					.unwrap_or("nixosConfigurations".to_string())
+					.unwrap_or(".nixosConfigurations".to_string())
 					+ ".";
 				model.path_navigator_input = InputState::Active(InputModel {
 					typing: false,
@@ -185,7 +195,6 @@ impl UpdateContext {
 						KeyCode::Char(_) | KeyCode::Backspace => {
 							let path = BrowserPath::from(x.input.clone());
 							if let Some(new_path) = path.parent() {
-								tracing::debug!("{:?}", new_path);
 								self.maybe_reeval_path(&new_path, model);
 								model.update_parent_selection(new_path);
 								self.maybe_reeval_parent(model);
@@ -249,8 +258,8 @@ impl UpdateContext {
 											&parent_list.list[nearest_occurrence_index];
 										let new_path =
 											parent.child(nearest_occurrence.to_string()).to_expr();
-										x.cursor_position = new_path.len();
-										x.input = new_path;
+										x.cursor_position = new_path.len() + 1;
+										x.input = ".".to_string() + &new_path;
 									}
 								}
 							}
@@ -266,7 +275,7 @@ impl UpdateContext {
 				if let Some(p) = model.visit_stack.current() {
 					if let InputState::Active(state) = &model.new_bookmark_input {
 						let name = &state.input;
-						model.bookmarks.push(Bookmark {
+						model.config.bookmarks.push(Bookmark {
 							display: if name.len() > 0 {
 								name.to_string()
 							} else {
@@ -275,17 +284,19 @@ impl UpdateContext {
 							path: p.clone(),
 						});
 						model.new_bookmark_input = InputState::Normal;
+						save_config(self.config_path.clone(), model.config.clone());
 					}
 				}
 			}
 			Message::DeleteBookmark => {
 				if let Some(i) = model.bookmark_view_state.selected() {
-					model.bookmarks.remove(i);
-					let bookmarks_len = model.bookmarks.len();
+					model.config.bookmarks.remove(i);
+					let bookmarks_len = model.config.bookmarks.len();
 					let selected = model.bookmark_view_state.selected_mut();
 					let new = selected.map(|x| x.min(bookmarks_len - 1));
 					*selected = new;
 				}
+				save_config(self.config_path.clone(), model.config.clone());
 			}
 			Message::Back => {
 				model.visit_stack.pop();
@@ -306,7 +317,7 @@ impl UpdateContext {
 							self.maybe_reeval_current_selection(&BrowserStackItem::Recents, model);
 						}
 						Some(2) => {
-							let x = BrowserPath::from("nixosConfigurations".to_string());
+							let x = BrowserPath::from("".to_string());
 							self.maybe_reeval_selection_browser(&x, model);
 							model.visit_stack.push_path(x);
 						}
@@ -349,7 +360,7 @@ impl UpdateContext {
 						}
 					}
 					BrowserStackItem::Bookmarks => {
-						select_prev(&mut model.bookmark_view_state, model.bookmarks.len());
+						select_prev(&mut model.bookmark_view_state, model.config.bookmarks.len());
 					}
 					BrowserStackItem::Recents => {
 						select_prev(&mut model.recents_view_state, model.recents.len());
@@ -365,8 +376,7 @@ impl UpdateContext {
 						if let Some(1) = model.root_view_state.selected() {
 							let req_tx = self.req_tx.clone();
 							std::thread::spawn(move || {
-								let _ = req_tx
-									.send(BrowserPath::from("nixosConfigurations".to_string()));
+								let _ = req_tx.send(BrowserPath::from("".to_string()));
 							});
 						}
 					}
@@ -381,7 +391,7 @@ impl UpdateContext {
 						self.maybe_reeval_selection(model);
 					}
 					BrowserStackItem::Bookmarks => {
-						select_next(&mut model.bookmark_view_state, model.bookmarks.len());
+						select_next(&mut model.bookmark_view_state, model.config.bookmarks.len());
 					}
 					BrowserStackItem::Recents => {
 						select_next(&mut model.recents_view_state, model.recents.len());

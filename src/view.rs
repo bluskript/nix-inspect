@@ -94,9 +94,8 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 						}
 						// Root
 						Some(2) => {
-							if let Some(PathData::List(current_list_data)) = model
-								.path_data
-								.get(&BrowserPath::from("nixosConfigurations".to_string()))
+							if let Some(PathData::List(current_list_data)) =
+								model.path_data.get(&BrowserPath::from("".to_string()))
 							{
 								render_list(
 									f,
@@ -172,7 +171,7 @@ pub fn render_recents(model: &Model, f: &mut Frame, inner: Rect) {
 
 pub fn render_bookmarks(model: &Model, f: &mut Frame, inner: Rect) {
 	f.render_stateful_widget(
-		with_selected_style(List::new(model.bookmarks.clone())),
+		with_selected_style(List::new(model.config.bookmarks.clone())),
 		inner,
 		&mut model.bookmark_view_state.clone(),
 	)

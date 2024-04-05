@@ -5,20 +5,13 @@
 
 #include "inspector.hh"
 
-volatile sig_atomic_t stop;
-
-void inthand(int signum) {
-  stop = 1;
-  throw std::runtime_error("Interrupted by Ctrl+C");
-}
-
 int main() {
-  signal(SIGINT, inthand);
   init_nix_inspector();
-  auto inspector = NixInspector();
-  while (!stop) {
-    std::string data;
-    std::cin >> data;
+  std::string expr;
+  getline(std::cin, expr);
+  auto inspector = NixInspector(expr);
+  std::string data;
+  while (getline(std::cin, data)) {
     try {
       auto value = inspector.inspect(data);
       nlohmann::json out = {

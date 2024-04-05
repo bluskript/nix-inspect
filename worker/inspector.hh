@@ -50,11 +50,11 @@ struct NixInspector : virtual EvalCommand {
   Value &vRoot;
   Bindings &autoArgs;
 
-  NixInspector();
+  NixInspector(std::string expr);
   void addAttrsToScope(Value &attrs);
   ref<Store> getEvalStore();
 
-  std::shared_ptr<Value> inspect(const std::string &attrPaths);
+  std::shared_ptr<Value> inspect(std::string &attrPaths);
   ValueType v_type(const Value &value);
   int32_t v_int(const Value &value);
   float_t v_float(const Value &value);
@@ -73,4 +73,3 @@ struct NixInspector : virtual EvalCommand {
 };
 
 void init_nix_inspector();
-std::unique_ptr<NixInspector> new_nix_inspector();
