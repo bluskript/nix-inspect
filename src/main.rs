@@ -1,18 +1,25 @@
 use std::{
 	env,
 	fs::{create_dir_all, File},
-	io::Read,
+	io::{stdout, Read},
 	path::{Path, PathBuf},
 	sync::Arc,
 };
 
 use clap::Parser;
 use color_eyre::eyre::OptionExt;
+use crossterm::{
+	terminal::{
+		disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
+		SetSize,
+	},
+	ExecutableCommand,
+};
 use key_handler::register_key_handler;
 use logging::{initialize_logging, project_directory};
 use model::{Bookmark, BrowserPath, BrowserStack, BrowserStackItem, Message, Model, RunningState};
 use parking_lot::RwLock;
-use ratatui::widgets::ListState;
+use ratatui::{backend::CrosstermBackend, widgets::ListState, Terminal};
 use serde::{Deserialize, Serialize};
 use update::UpdateContext;
 use view::view;
@@ -83,7 +90,11 @@ pub fn read_config(p: PathBuf) -> anyhow::Result<Config> {
 }
 
 fn main() -> color_eyre::Result<()> {
-	let mut terminal = tui::init_terminal()?;
+	let args = Args::parse();
+	let (cols, rows) = size()?;
+	enable_raw_mode()?;
+	stdout().execute(EnterAlternateScreen)?;
+	let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 	initialize_logging()?;
 	tui::install_panic_hook();
 
@@ -121,7 +132,6 @@ fn main() -> color_eyre::Result<()> {
 		config
 	};
 
-	let args = Args::parse();
 	let expr = load_config(&args)?;
 	tracing::debug!("{}", expr);
 
@@ -175,7 +185,9 @@ fn main() -> color_eyre::Result<()> {
 		}
 	}
 
-	tui::restore_terminal()?;
+	stdout().execute(LeaveAlternateScreen)?;
+	disable_raw_mode()?;
+	stdout().execute(SetSize(cols, rows))?;
 
 	Ok(())
 }
