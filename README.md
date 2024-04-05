@@ -32,6 +32,13 @@ and then reference it in your `environment.systemPackages`:
 }
 ```
 
+### Usage
+
+By default, `nix-inspect` will try to load your config where it is, by default this will be /etc/nixos if you are using flakes or the path in NIX_PATH if you are using legacy. If this behavior is not what you want, `nix-inspect` comes with some flags:
+
+- `--expr` / `-e` - load an arbitrary expression. Example: `nix-inspect -e { a = 1; }`
+- `--path` / `-p` - load a config at a specific path. Example: `nix-inspect -p /persist/etc/nixos`
+
 ### Key Bindings
 
 | Key             | Behavior            |
@@ -49,5 +56,4 @@ and then reference it in your `environment.systemPackages`:
 
 ### Known Issues / TODO
 
-- Legacy non-flake config support
-- Loading arbitrary nix exprs defined by the user
+- Search / path navigator ui needs to be more visible
