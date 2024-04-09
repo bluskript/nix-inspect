@@ -1,5 +1,6 @@
 # nix-inspect
-Interactive nix config viewer
+
+A ranger-like TUI for inspecting your nixos config and other arbitrary nix expressions.
 
 ```
 nix run github:bluskript/nix-inspect
@@ -7,30 +8,26 @@ nix run github:bluskript/nix-inspect
 
 https://github.com/bluskript/nix-inspect/assets/52386117/a18c6038-f954-451b-a8cd-26b30a197165
 
-### Features
-- 🪡 Path navigator to quickly type in or paste a path which live updates as you type
-- 🔍Fuzzy search in the current directory
-- 🔖 Bookmarks to save important nix paths, automatically populated with your current system and user
-- ⌨️ Vim keybindings
-- (planned) 🕑 Recently visited paths tab
+### Motivation
 
-### Installation
-As of now the project remains unpackaged in `nixpkgs`, so the recommended installation method is through flakes:
-```nix
-{
-  inputs = {
-    nix-inspect.url = "github:bluskript/nix-inspect";
-  };
-}
+A lot of the time my workflow using nixos would involve running a series of commands to find the final merged result of my config:
 ```
-and then reference it in your `environment.systemPackages`:
-```nix
-{inputs, ...}: {
-  environment.systemPackages = [
-    inputs.nix-inspect.packages.default
-  ];
-}
+❯ : nix repl
+nix-repl> :lf /etc/nixos
+Added 18 variables.
+nix-repl> nixosConfigurations.felys.config.home-manager.users.blusk.stylix.fonts.monospace.name
+"Cozette"
 ```
+
+`nix-inspect` aims to improve on this workflow by offering a interactive way to browse a config and offering quality of life features such as bookmarks and a path navigator mode to get where you need quickly.
+
+### Features
+- 🪡 Path navigator to quickly type in or paste a path which live updates as you type (.)
+  - Supports tab completion!
+- 🔍Fuzzy search in the current directory (Ctrl-F or /)
+- 🔖 Bookmarks to save important nix paths, automatically populated with your current system and user (s)
+- ⌨️ Vim keybindings (hjkl, ctl+u, ctrl+d)
+- (planned) 🕑 Recently visited paths tab
 
 ### Usage
 
@@ -54,6 +51,21 @@ By default, `nix-inspect` will try to load your config where it is, by default t
 | s               | Save bookmark       |
 | .               | Path Navigator mode |
 
-### Known Issues / TODO
 
-- Search / path navigator ui needs to be more visible
+### Installation
+As of now the project remains unpackaged in `nixpkgs`, so the recommended installation method is through flakes:
+```nix
+{
+  inputs = {
+    nix-inspect.url = "github:bluskript/nix-inspect";
+  };
+}
+```
+and then reference it in your `environment.systemPackages`:
+```nix
+{inputs, ...}: {
+  environment.systemPackages = [
+    inputs.nix-inspect.packages.default
+  ];
+}
+```
