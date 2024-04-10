@@ -23,13 +23,19 @@ pub fn save_config(path: PathBuf, config: Config) {
 }
 
 impl UpdateContext {
+	pub fn queue_reeval(&self, path: &BrowserPath) {
+		let path = path.clone();
+		let req_tx = self.req_tx.clone();
+		std::thread::spawn(move || {
+			let _ = req_tx.send(path.clone());
+		});
+	}
+
 	pub fn maybe_reeval_path(&self, path: &BrowserPath, model: &Model) {
 		if model.path_data.get(&path).is_none() {
 			let req_tx = self.req_tx.clone();
 			let path = path.clone();
-			std::thread::spawn(move || {
-				let _ = req_tx.send(path);
-			});
+			self.queue_reeval(&path);
 		}
 	}
 
@@ -48,7 +54,10 @@ impl UpdateContext {
 			PathData::List(x) => x,
 			_ => return,
 		};
-		let selected = list.selected(&p);
+		let selected = match list.selected(&p) {
+			Some(x) => x,
+			None => return,
+		};
 		if list.list.contains(selected.0.last().unwrap()) {
 			self.maybe_reeval_path(&selected, model);
 		}
@@ -89,12 +98,39 @@ impl UpdateContext {
 	) -> color_eyre::Result<Option<Message>> {
 		match msg {
 			Message::Data(p, d) => {
-				model.path_data.insert(p, d);
+				let data = d.clone();
+				model
+					.path_data
+					.entry(p)
+					.and_modify(|x| match (x, data) {
+						(PathData::List(p), PathData::List(d)) => {
+							p.cursor = p.cursor.min(d.list.len()).max(0);
+							p.list = d.list;
+						}
+						x @ _ => *x.0 = x.1,
+					})
+					.or_insert(d.clone());
 				self.maybe_reeval_selection(model);
 			}
 			Message::CurrentPath(p) => {
 				model.visit_stack.push(BrowserStackItem::BrowserPath(p));
 				self.maybe_reeval_selection(model);
+			}
+			Message::Refresh => {
+				if let Some(path) = model.visit_stack.current() {
+					self.queue_reeval(path);
+					if let Some(data) = model.path_data.current_list(path) {
+						if let Some(path) = data.selected(path) {
+							self.queue_reeval(&path);
+						}
+					}
+				}
+				if let Some(BrowserStackItem::BrowserPath(path)) = model.visit_stack.prev_item() {
+					self.queue_reeval(path);
+				}
+				if let Some(path) = model.visit_stack.current() {
+					self.queue_reeval(path);
+				}
 			}
 			Message::PageUp => {
 				if let Some(x) = model.visit_stack.current() {
@@ -174,10 +210,10 @@ impl UpdateContext {
 			}
 			Message::NavigatorEnter => {
 				let current_path = model.visit_stack.current();
-				let path_str = ".".to_string() + &current_path
-					.map(|x| x.to_expr())
-					.unwrap_or("nixosConfigurations".to_string())
-					+ ".";
+				let path_str = ".".to_string()
+					+ &current_path
+						.map(|x| x.to_expr() + ".")
+						.unwrap_or("nixosConfigurations.".to_string());
 				model.path_navigator_input = InputState::Active(InputModel {
 					typing: false,
 					cursor_position: path_str.len(),
@@ -299,8 +335,10 @@ impl UpdateContext {
 				save_config(self.config_path.clone(), model.config.clone());
 			}
 			Message::Back => {
-				model.visit_stack.pop();
-				self.maybe_reeval_selection(model);
+				if model.visit_stack.len() > 1 {
+					model.visit_stack.pop();
+					self.maybe_reeval_selection(model);
+				}
 			}
 			Message::Enter => match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
 				BrowserStackItem::Root => {
@@ -384,8 +422,10 @@ impl UpdateContext {
 						if let Some(list) = model.path_data.current_list_mut(&p) {
 							list.cursor = next(list.cursor, list.list.len());
 							let selected = list.selected(&p);
-							if model.path_data.get(&selected).is_none() {
-								let _ = self.req_tx.send(selected);
+							if let Some(selected) = selected {
+								if model.path_data.get(&selected).is_none() {
+									let _ = self.req_tx.send(selected);
+								}
 							}
 						}
 						self.maybe_reeval_selection(model);

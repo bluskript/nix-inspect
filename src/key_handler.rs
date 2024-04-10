@@ -67,6 +67,7 @@ fn handle_normal_input(key: event::KeyEvent) -> Option<Message> {
 		KeyCode::Char('l') | KeyCode::Right => Some(Message::Enter),
 		KeyCode::Char('f') | KeyCode::Char('/') => Some(Message::SearchEnter),
 		KeyCode::Char('s') => Some(Message::BookmarkInputEnter),
+		KeyCode::Char('r') => Some(Message::Refresh),
 		KeyCode::Char('d') => {
 			if key.modifiers.contains(KeyModifiers::CONTROL) {
 				Some(Message::PageDown)

@@ -1,8 +1,7 @@
 use crossterm::{
-	terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+	terminal::{disable_raw_mode, LeaveAlternateScreen},
 	ExecutableCommand,
 };
-use ratatui::prelude::*;
 use std::{io::stdout, panic};
 
 pub fn install_panic_hook() {

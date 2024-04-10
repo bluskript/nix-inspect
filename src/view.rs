@@ -34,6 +34,18 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 
 	let mut view_data = ViewData::default();
 
+	let path = model
+		.visit_stack
+		.iter()
+		.map(|x| match x {
+			BrowserStackItem::BrowserPath(p) => p.0.last().unwrap_or(&"".to_string()).to_owned(),
+			BrowserStackItem::Root => "Root".to_string(),
+			BrowserStackItem::Recents => "Recents".to_string(),
+			BrowserStackItem::Bookmarks => "Bookmarks".to_string(),
+		})
+		.collect::<Vec<_>>()
+		.join(" > ");
+
 	match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
 		BrowserStackItem::BrowserPath(p) => match model.path_data.get(&p) {
 			Some(data) if !matches!(data, PathData::List(_)) => {
@@ -51,6 +63,12 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 				view_data.current_list_height = inner.height;
 				f.render_widget(block, outer);
 				let _ = render_value_preview(f, data, inner);
+				let path_rect = miller_layout[0];
+				f.render_widget(
+					Paragraph::new(&path[path.len().saturating_sub(path_rect.width as usize)..])
+						.alignment(Alignment::Left),
+					Rect::new(path_rect.x, path_rect.y, path_rect.width, 1),
+				);
 			}
 			x @ _ => {
 				let current_list_block = current_frame();
@@ -68,6 +86,13 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 					);
 				}
 				let _ = render_preview(f, model, miller_layout[2], p);
+
+				let path_rect = miller_layout[0].union(miller_layout[1]);
+				f.render_widget(
+					Paragraph::new(&path[path.len().saturating_sub(path_rect.width as usize)..])
+						.alignment(Alignment::Left),
+					Rect::new(path_rect.x, path_rect.y, path_rect.width, 1),
+				);
 			}
 		},
 		x @ _ => {
@@ -131,6 +156,13 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 				}
 				BrowserStackItem::BrowserPath(_) => unreachable!(),
 			}
+
+			let path_rect = miller_layout[0].union(miller_layout[1]);
+			f.render_widget(
+				Paragraph::new(&path[path.len().saturating_sub(path_rect.width as usize)..])
+					.alignment(Alignment::Left),
+				Rect::new(path_rect.x, path_rect.y, path_rect.width, 1),
+			);
 		}
 	}
 
@@ -348,7 +380,7 @@ pub fn render_preview(f: &mut Frame, model: &Model, outer: Rect, current_path: &
 	let selected_path = model
 		.path_data
 		.current_list(&current_path)
-		.map(|list| list.selected(&current_path));
+		.and_then(|list| list.selected(&current_path));
 
 	if let Some(selected_path) = selected_path {
 		if let Some(value) = model.path_data.get(&selected_path) {

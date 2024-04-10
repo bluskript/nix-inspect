@@ -158,7 +158,7 @@ fn main() -> color_eyre::Result<()> {
 		std::thread::spawn(move || loop {
 			match worker_rx.recv() {
 				Ok((p, v)) => {
-					let _ = tx.send(Message::Data(p, v.into()));
+					let _ = tx.send(Message::Data(p, v));
 				}
 				Err(_) => break,
 			}

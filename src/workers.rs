@@ -3,7 +3,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use crate::model::BrowserPath;
+use crate::model::{BrowserPath, PathData};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "data")]
@@ -36,7 +36,7 @@ pub const WORKER_BINARY_PATH: &str = env!("WORKER_BINARY_PATH");
 
 pub struct WorkerHost {
 	pub tx: kanal::Sender<BrowserPath>,
-	pub rx: kanal::Receiver<(BrowserPath, NixValue)>,
+	pub rx: kanal::Receiver<(BrowserPath, PathData)>,
 }
 
 impl WorkerHost {
@@ -65,6 +65,7 @@ impl WorkerHost {
 				tracing::info!("{:?}", received);
 				match received {
 					Ok(path) => {
+						result_tx.send((path.clone(), PathData::Loading)).expect("Failed to send loading state");
 						if let Err(e) = writeln!(stdin, "{}", path.to_expr()) {
 							tracing::error!("Failed to send path, {e}");
 							break;
@@ -86,7 +87,7 @@ impl WorkerHost {
 						};
 
 						result_tx
-							.send((path, value))
+							.send((path, value.into()))
 							.expect("Failed to send result");
 					}
 					Err(_) => {

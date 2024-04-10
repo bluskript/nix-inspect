@@ -139,6 +139,7 @@ impl BrowserStack {
 pub enum Message {
 	Data(BrowserPath, PathData),
 	CurrentPath(BrowserPath),
+	Refresh,
 	PageDown,
 	PageUp,
 	SearchEnter,
@@ -228,20 +229,21 @@ pub enum RunningState {
 	Stopped,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListData {
 	pub cursor: usize,
 	pub list: Vec<String>,
 }
 
 impl ListData {
-	pub fn selected(&self, current_path: &BrowserPath) -> BrowserPath {
-		let x = &self.list[self.cursor];
-		current_path.child(x.to_string())
+	pub fn selected(&self, current_path: &BrowserPath) -> Option<BrowserPath> {
+		self.list
+			.get(self.cursor)
+			.map(|x| current_path.child(x.to_string()))
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PathData {
 	List(ListData),
 	Thunk,
@@ -253,6 +255,8 @@ pub enum PathData {
 	Null,
 	Function,
 	External,
+	Loading,
+	Error,
 }
 
 impl fmt::Display for PathData {
@@ -268,6 +272,8 @@ impl fmt::Display for PathData {
 			PathData::Null => write!(f, "Null"),
 			PathData::Function => write!(f, "Function"),
 			PathData::External => write!(f, "External"),
+			PathData::Loading => write!(f, "Loading"),
+			PathData::Error => write!(f, "Error"),
 		}
 	}
 }
@@ -309,6 +315,8 @@ impl PathData {
 			PathData::Null => "Null",
 			PathData::Function => "Function",
 			PathData::External => "External",
+			PathData::Loading => "Loading",
+			PathData::Error => "Error",
 		}
 		.to_string()
 	}
