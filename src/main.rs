@@ -63,14 +63,15 @@ fn load_config(args: &Args) -> color_eyre::Result<String> {
 	if let Some(expr) = &args.expr {
 		Ok(expr.to_string())
 	} else if let Some(path) = &args.path {
-		let is_file = Path::new(path).is_file();
+		let path = Path::new(path).canonicalize()?;
+		let is_file = path.is_file();
 		let is_flake =
-			is_file && path.ends_with("flake.nix") || Path::new(path).join("flake.nix").exists();
+			is_file && path.ends_with("flake.nix") || path.join("flake.nix").exists();
 
 		Ok(if is_flake {
-			format!(r#"builtins.getFlake "{path}""#)
+			format!(r#"builtins.getFlake "{}""#, path.display())
 		} else {
-			format!("(import <nixpkgs/nixos>) {{ system = builtins.currentSystem; configuration = import {}; }}", path)
+			format!("(import <nixpkgs/nixos>) {{ system = builtins.currentSystem; configuration = import {}; }}", path.display())
 		})
 	} else {
 		let etc_nixos_flake = Path::new("/etc/nixos/flake.nix");
