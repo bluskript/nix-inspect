@@ -10,12 +10,18 @@ pub fn register_key_handler(tx: &kanal::Sender<Message>, model: Arc<RwLock<Model
 	std::thread::spawn(move || -> anyhow::Result<()> {
 		loop {
 			if let Ok(true) = event::poll(Duration::from_millis(100)) {
-				if let Event::Key(key) = event::read()? {
-					if key.kind == event::KeyEventKind::Press {
-						if let Some(msg) = handle_key(key, &model.read()) {
-							let _ = tx.send(msg);
+				match event::read()? {
+					Event::Key(key) => {
+						if key.kind == event::KeyEventKind::Press {
+							if let Some(msg) = handle_key(key, &model.read()) {
+								let _ = tx.send(msg);
+							}
 						}
 					}
+					Event::Resize(_, _) => {
+						let _ = tx.send(Message::Resize);
+					}
+					_ => {}
 				}
 			}
 		}

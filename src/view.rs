@@ -1,5 +1,6 @@
 use lazy_static::lazy_static;
-use ratatui::widgets::{ListState, Wrap};
+use ratatui::text::Text;
+use ratatui::widgets::{Clear, ListState, Widget, Wrap};
 use ratatui::Frame;
 
 use ratatui::{
@@ -19,10 +20,14 @@ pub struct ViewData {
 }
 
 pub fn view(model: &Model, f: &mut Frame) -> ViewData {
+	let path_rect = Layout::default()
+		.direction(Direction::Vertical)
+		.constraints(Constraint::from_mins([1, 1]))
+		.split(f.size());
 	let miller_layout = Layout::default()
 		.direction(Direction::Horizontal)
 		.constraints(Constraint::from_percentages([20, 40, 20]))
-		.split(f.size());
+		.split(path_rect[1]);
 
 	let previous_list_block =
 		Block::default().borders(Borders::TOP | Borders::BOTTOM | Borders::LEFT);
@@ -45,6 +50,14 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 		.collect::<Vec<_>>()
 		.join(" > ");
 
+	let path_rect = path_rect[0];
+
+	f.render_widget(
+		Paragraph::new(&path[path.len().saturating_sub(path_rect.width as usize)..])
+			.alignment(Alignment::Left),
+		Rect::new(path_rect.x + 1, path_rect.y, path_rect.width - 1, 1),
+	);
+
 	match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
 		BrowserStackItem::BrowserPath(p) => match model.path_data.get(&p) {
 			Some(data) if !matches!(data, PathData::List(_)) => {
@@ -62,12 +75,6 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 				view_data.current_list_height = inner.height;
 				f.render_widget(block, outer);
 				let _ = render_value_preview(f, data, inner);
-				let path_rect = miller_layout[0];
-				f.render_widget(
-					Paragraph::new(&path[path.len().saturating_sub(path_rect.width as usize)..])
-						.alignment(Alignment::Left),
-					Rect::new(path_rect.x, path_rect.y, path_rect.width, 1),
-				);
 			}
 			x @ _ => {
 				let current_list_block = current_frame();
@@ -85,13 +92,6 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 					);
 				}
 				let _ = render_preview(f, model, miller_layout[2], p);
-
-				let path_rect = miller_layout[0].union(miller_layout[1]);
-				f.render_widget(
-					Paragraph::new(&path[path.len().saturating_sub(path_rect.width as usize)..])
-						.alignment(Alignment::Left),
-					Rect::new(path_rect.x, path_rect.y, path_rect.width, 1),
-				);
 			}
 		},
 		x @ _ => {
@@ -155,17 +155,15 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 				}
 				BrowserStackItem::BrowserPath(_) => unreachable!(),
 			}
-
-			let path_rect = miller_layout[0].union(miller_layout[1]);
-			f.render_widget(
-				Paragraph::new(&path[path.len().saturating_sub(path_rect.width as usize)..])
-					.alignment(Alignment::Left),
-				Rect::new(path_rect.x, path_rect.y, path_rect.width, 1),
-			);
 		}
 	}
 
-	render_inputs(f, model, f.size());
+	let rect = f.size();
+	render_bottom(
+		f,
+		model,
+		Rect::new(rect.x + 1, rect.y + 1, rect.width - 1, rect.height - 1),
+	);
 
 	view_data
 }
@@ -291,28 +289,73 @@ pub fn render_previous_list(f: &mut Frame, model: &Model, inner: Rect, p: &Brows
 	);
 }
 
-pub fn render_inputs(f: &mut Frame, model: &Model, inner: Rect) {
+pub fn render_keymap(f: &mut Frame, rect: Rect) {
+	let keymap = [
+		(".", "Go To Path"),
+		("/", "Find"),
+		("r", "Refresh"),
+		("s", "Save Bookmark"),
+		("d", "Delete Bookmark"),
+		("q", "Quit"),
+		("<C-d>", "Half-page down"),
+		("<C-u>", "Half-page up"),
+	];
+	let texts = keymap
+		.iter()
+		.map(|(key, text)| {
+			[
+				key.black().on_gray(),
+				Span::from(format!(" {text} ")).fg(Color::default()),
+			]
+		})
+		.flatten()
+		.collect::<Vec<_>>();
+	let paragraph = Paragraph::new(Line::from(texts)).alignment(Alignment::Center);
+	f.render_widget(paragraph, rect);
+}
+
+pub fn render_input<'a>(f: &mut Frame, text: impl Into<Text<'a>>, rect: Rect) {
+	Clear.render(rect, f.buffer_mut());
+	f.render_widget(
+		Paragraph::new(text)
+			.alignment(Alignment::Left)
+			.fg(Color::Gray)
+			.bg(Color::default()),
+		rect,
+	);
+}
+
+pub fn render_bottom(f: &mut Frame, model: &Model, inner: Rect) {
 	// Offset from the bottom, in case there are two parallel inputs being displayed
 	let mut offset = 1;
+
+	render_keymap(
+		f,
+		Rect::new(inner.left(), inner.bottom() - offset, inner.width, 1),
+	);
+
+	offset += 1;
 
 	// Render the search string in the bottom right corner of the container
 	if let InputState::Active(search_model) = &model.search_input {
 		let render_text = format!("Search: {}", search_model.input.clone());
 		// ratatui does not have a concept of a "right overflow" to my understanding, so clip the
 		// text from the left manually if it starts overflowing
-		f.render_widget(
-			Paragraph::new(&render_text[render_text.len().saturating_sub(inner.width as usize)..])
-				.alignment(Alignment::Left),
+		let render_text = &render_text[render_text.len().saturating_sub(inner.width as usize)..];
+
+		render_input(
+			f,
+			render_text,
 			Rect::new(inner.left(), inner.bottom() - offset, inner.width, 1),
 		);
 		offset += 1;
 	}
 	if let InputState::Active(navigator_state) = &model.path_navigator_input {
 		let render_text = format!("Goto: {}", navigator_state.input.clone());
-		f.render_widget(
-			Paragraph::new(&render_text[render_text.len().saturating_sub(inner.width as usize)..])
-				.alignment(Alignment::Left)
-				.fg(Color::Gray),
+		let render_text = &render_text[render_text.len().saturating_sub(inner.width as usize)..];
+		render_input(
+			f,
+			render_text,
 			Rect::new(inner.left(), inner.bottom() - offset, inner.width, 1),
 		);
 		offset += 1;
@@ -320,12 +363,13 @@ pub fn render_inputs(f: &mut Frame, model: &Model, inner: Rect) {
 
 	if let InputState::Active(bookmark_input_state) = &model.new_bookmark_input {
 		let render_text = format!("bookmark name: {}", bookmark_input_state.input.clone());
-		f.render_widget(
-			Paragraph::new(&render_text[render_text.len().saturating_sub(inner.width as usize)..])
-				.alignment(Alignment::Left)
-				.fg(Color::Gray),
+		let render_text = &render_text[render_text.len().saturating_sub(inner.width as usize)..];
+		render_input(
+			f,
+			render_text,
 			Rect::new(inner.left(), inner.bottom() - offset, inner.width, 1),
 		);
+		offset += 1;
 	}
 }
 

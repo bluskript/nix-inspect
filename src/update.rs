@@ -439,6 +439,7 @@ impl UpdateContext {
 				}
 				self.maybe_reeval_current_selection(&x, model);
 			}
+			Message::Resize => {}
 			Message::Quit => model.running_state = RunningState::Stopped,
 		};
 		Ok(None)

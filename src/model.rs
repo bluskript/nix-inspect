@@ -157,6 +157,7 @@ pub enum Message {
 	Enter,
 	ListUp,
 	ListDown,
+	Resize,
 	Quit,
 }
 
