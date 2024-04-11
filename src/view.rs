@@ -1,4 +1,3 @@
-use color_eyre::owo_colors::OwoColorize;
 use lazy_static::lazy_static;
 use ratatui::widgets::{ListState, Wrap};
 use ratatui::Frame;

@@ -212,7 +212,7 @@ impl UpdateContext {
 				let current_path = model.visit_stack.current();
 				let path_str = ".".to_string()
 					+ &current_path
-						.map(|x| x.to_expr() + ".")
+						.map(|x| x.to_expr() + if x.0.len() > 1 { "." } else { "" })
 						.unwrap_or("nixosConfigurations.".to_string());
 				model.path_navigator_input = InputState::Active(InputModel {
 					typing: false,
