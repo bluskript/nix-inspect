@@ -6,7 +6,8 @@ A ranger-like TUI for inspecting your nixos config and other arbitrary nix expre
 nix run github:bluskript/nix-inspect
 ```
 
-https://github.com/bluskript/nix-inspect/assets/52386117/a18c6038-f954-451b-a8cd-26b30a197165
+
+https://github.com/bluskript/nix-inspect/assets/52386117/21cfc643-653c-43c8-abf1-d75c07f15b7f
 
 ### Motivation
 
