@@ -105,11 +105,9 @@ fn main() -> color_eyre::Result<()> {
 		c
 	} else {
 		// Same behavior as nixos-rebuild
-		let mut hostname_file = File::open("/proc/sys/kernel/hostname")?;
-		let mut hostname = String::new();
-		hostname_file.read_to_string(&mut hostname)?;
-
-		let hostname_path = format!(".nixosConfigurations.{}", hostname.trim());
+		let hostname = nix::unistd::gethostname()?;
+		let hostname = hostname.to_string_lossy();
+		let hostname_path = format!(".nixosConfigurations.{}", hostname);
 
 		let user = env::var("USER")?;
 		let user_path = format!("{hostname_path}.config.home-manager.users.{user}");
@@ -117,7 +115,7 @@ fn main() -> color_eyre::Result<()> {
 		let config = Config {
 			bookmarks: vec![
 				Bookmark {
-					display: hostname.clone(),
+					display: hostname.to_string(),
 					path: BrowserPath::from(hostname_path),
 				},
 				Bookmark {
