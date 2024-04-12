@@ -65,8 +65,7 @@ fn load_config(args: &Args) -> color_eyre::Result<String> {
 	} else if let Some(path) = &args.path {
 		let path = Path::new(path).canonicalize()?;
 		let is_file = path.is_file();
-		let is_flake =
-			is_file && path.ends_with("flake.nix") || path.join("flake.nix").exists();
+		let is_flake = is_file && path.ends_with("flake.nix") || path.join("flake.nix").exists();
 
 		Ok(if is_flake {
 			format!(r#"builtins.getFlake "{}""#, path.display())
@@ -74,12 +73,14 @@ fn load_config(args: &Args) -> color_eyre::Result<String> {
 			format!("(import <nixpkgs/nixos>) {{ system = builtins.currentSystem; configuration = import {}; }}", path.display())
 		})
 	} else {
-		let etc_nixos_flake = Path::new("/etc/nixos/flake.nix");
+		let nixos_path = Path::new("/etc/nixos").canonicalize()?;
+		let etc_nixos_flake = nixos_path.join("flake.nix");
 		if etc_nixos_flake.exists() {
-			Ok(r#"builtins.getFlake "/etc/nixos""#.to_string())
+			Ok(format!(r#"builtins.getFlake "{}""#, nixos_path.display()))
 		} else {
 			let path = find_in_nix_path().unwrap_or("/etc/nixos".to_string());
-			Ok(format!("(import <nixpkgs/nixos>) {{ system = builtins.currentSystem; configuration = import {}; }}", path))
+			let path = Path::new(&path).canonicalize()?;
+			Ok(format!("(import <nixpkgs/nixos>) {{ system = builtins.currentSystem; configuration = import {}; }}", path.display()))
 		}
 	}
 }
