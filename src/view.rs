@@ -1,3 +1,4 @@
+use ansi_to_tui::IntoText;
 use lazy_static::lazy_static;
 use ratatui::text::Text;
 use ratatui::widgets::{Clear, ListState, Widget, Wrap};
@@ -373,8 +374,8 @@ pub fn render_bottom(f: &mut Frame, model: &Model, inner: Rect) {
 	}
 }
 
-pub fn render_value_preview(f: &mut Frame, value: &PathData, inner: Rect) {
-	match value {
+pub fn render_value_preview(f: &mut Frame, path_data: &PathData, inner: Rect) {
+	match path_data {
 		// NixValue::Attrs(list) => {
 		//     let items = list.iter().map(|(k, _v)| {
 		//         model
@@ -401,9 +402,11 @@ pub fn render_value_preview(f: &mut Frame, value: &PathData, inner: Rect) {
 			render_list(f, list, inner, None, None, &None);
 		}
 		_ => {
+			let value = path_data.to_string();
+			let value = value.into_text().unwrap_or(value.to_string().into());
 			f.render_widget(
-				Paragraph::new(value.to_string())
-					.style(Style::new().fg(color_from_type(value)))
+				Paragraph::new(value)
+					.style(Style::new().fg(color_from_type(path_data)))
 					.wrap(Wrap { trim: true }),
 				inner,
 			);
@@ -444,11 +447,12 @@ fn color_from_type(value: &PathData) -> Color {
 		PathData::List(_) => Color::Cyan,
 		PathData::Int(_) | PathData::Float(_) => Color::LightBlue,
 		PathData::String(_) => Color::LightRed,
-		PathData::Path(_) => Color::Red,
+		PathData::Path(_) => Color::Rgb(187, 159, 252),
 		PathData::Bool(_) => Color::Green,
 		PathData::Function => Color::Magenta,
 		PathData::Thunk => Color::LightMagenta,
-		_ => Color::Gray,
+		PathData::Error(_) => Color::Red,
+		_ => Color::default(),
 	}
 }
 

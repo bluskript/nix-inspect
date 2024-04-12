@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
 use std::process::{Command, Stdio};
 
 use crate::model::{BrowserPath, PathData};
@@ -30,6 +29,8 @@ pub enum NixValue {
 	Function,
 	#[serde(rename = "10")]
 	External,
+	#[serde(rename = "11")]
+	Error(String),
 }
 
 pub const WORKER_BINARY_PATH: &str = env!("WORKER_BINARY_PATH");
@@ -65,7 +66,9 @@ impl WorkerHost {
 				tracing::info!("{:?}", received);
 				match received {
 					Ok(path) => {
-						result_tx.send((path.clone(), PathData::Loading)).expect("Failed to send loading state");
+						result_tx
+							.send((path.clone(), PathData::Loading))
+							.expect("Failed to send loading state");
 						if let Err(e) = writeln!(stdin, "{}", path.to_expr()) {
 							tracing::error!("Failed to send path, {e}");
 							break;
@@ -74,6 +77,10 @@ impl WorkerHost {
 						let mut response = String::new();
 						if let Err(e) = reader.read_line(&mut response) {
 							tracing::error!("Failed to read response: {e}");
+							let _ = result_tx.send((
+								path,
+								PathData::Error(format!("Failed to read response: {e}")),
+							));
 							continue;
 						}
 
@@ -82,6 +89,10 @@ impl WorkerHost {
 							Err(e) => {
 								tracing::error!("{response}");
 								tracing::error!("Failed to deserialize response: {e}");
+								let _ = result_tx.send((
+									path,
+									PathData::Error(format!("Failed to deserialize response: {e}")),
+								));
 								continue;
 							}
 						};

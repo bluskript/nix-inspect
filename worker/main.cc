@@ -19,6 +19,9 @@ int main() {
           {"data", inspector.v_repr(*value)}
       };
       std::cout << out << std::endl;
+    } catch (const std::exception& ex) {
+      nlohmann::json out = {{"type", "11"}, {"data", ex.what()}};
+      std::cout << out << std::endl;
     } catch (...) {
       std::cout << "error" << std::endl;
     }
