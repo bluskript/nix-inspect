@@ -231,9 +231,15 @@ pub enum RunningState {
 }
 
 #[derive(Debug, Clone)]
+pub enum ListType {
+	List,
+	Attrset,
+}
+
+#[derive(Debug, Clone)]
 pub struct ListData {
 	pub cursor: usize,
-	pub list_type: String,
+	pub list_type: ListType,
 	pub list: Vec<String>,
 }
 
@@ -291,12 +297,12 @@ impl From<NixValue> for PathData {
 			NixValue::Path(p) => PathData::Path(p),
 			NixValue::Null => PathData::Null,
 			NixValue::Attrs(attrs) => PathData::List(ListData {
-				list_type: "Attrset".to_string(),
+				list_type: ListType::Attrset,
 				cursor: 0,
 				list: attrs,
 			}),
 			NixValue::List(size) => PathData::List(ListData {
-				list_type: "List".to_string(),
+				list_type: ListType::List,
 				cursor: 0,
 				list: (0..size).map(|i| format!("{}", i)).collect(),
 			}),
@@ -309,7 +315,10 @@ impl From<NixValue> for PathData {
 impl PathData {
 	pub fn get_type(&self) -> String {
 		match self {
-			PathData::List(data) => data.list_type.as_str(),
+			PathData::List(data) => match data.list_type {
+				ListType::Attrset => "Attrset",
+				ListType::List => "List",
+			},
 			PathData::Thunk => "Thunk",
 			PathData::Int(_) => "Int",
 			PathData::Float(_) => "Float",
