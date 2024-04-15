@@ -209,18 +209,70 @@ impl BrowserPath {
 		self
 	}
 	pub fn to_expr(&self) -> String {
-		if self.0[0].len() == 0 {
-			self.0[1..].join(".")
-		} else {
-			self.0.join(".")
+		let mut result = String::new();
+
+		let mut items = self.0.iter().peekable();
+
+		if let Some(0) = items.peek().map(|x| x.len()) {
+			items.next();
 		}
+
+		for (i, element) in items.enumerate() {
+			if i > 0 {
+				result.push('.');
+			}
+
+			if element.contains('.') {
+				result.push('"');
+				result.push_str(element);
+				result.push('"');
+			} else {
+				result.push_str(element);
+			}
+		}
+
+		result
 	}
 }
 
 impl From<String> for BrowserPath {
 	fn from(value: String) -> Self {
-		BrowserPath(value.split(".").map(|x| x.to_string()).collect())
+		let mut res = Vec::new();
+		let mut cur = String::new();
+		let mut chars = value.chars().peekable();
+
+		while let Some(c) = chars.next() {
+			match c {
+				'.' => {
+					res.push(cur);
+					cur = String::new();
+				}
+				'"' => {
+					while let Some(inner_c) = chars.next() {
+						if inner_c == '"' {
+							break;
+						}
+						cur.push(inner_c);
+					}
+				}
+				_ => cur.push(c),
+			}
+		}
+
+		res.push(cur);
+
+		BrowserPath(res)
 	}
+}
+
+#[test]
+pub fn test_expr_conversion() {
+	let path = BrowserPath::from(".".to_string());
+	assert_eq!(path.to_expr(), "");
+	let path = BrowserPath::from(".nixosConfigurations".to_string());
+	assert_eq!(path.to_expr(), "nixosConfigurations");
+	let path = BrowserPath::from(r#".nixosConfigurations."example.com""#.to_string());
+	assert_eq!(path.to_expr(), r#"nixosConfigurations."example.com""#);
 }
 
 #[derive(Default, Debug, PartialEq, Eq)]
