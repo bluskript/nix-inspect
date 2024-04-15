@@ -209,17 +209,47 @@ impl BrowserPath {
 		self
 	}
 	pub fn to_expr(&self) -> String {
-		if self.0[0].len() == 0 {
-			self.0[1..].join(".")
-		} else {
-			self.0.join(".")
+		let mut result = String::new();
+
+		for (i, element) in self.0.iter().enumerate() {
+			if i > 0 {
+				result.push('.');
+			}
+
+			if element.contains('.') {
+				result.push('"');
+				result.push_str(element);
+				result.push('"');
+			} else {
+				result.push_str(element);
+			}
 		}
+
+		result
 	}
 }
 
 impl From<String> for BrowserPath {
 	fn from(value: String) -> Self {
-		BrowserPath(value.split(".").map(|x| x.to_string()).collect())
+		let elements: Vec<String> = value
+			.split(|c| c == '.' || c == '"')
+			.filter(|s| !s.is_empty())
+			.scan(false, |in_quotes, s| {
+				if s == "\"" {
+					*in_quotes = !*in_quotes;
+					Some(None)
+				} else {
+					Some(if *in_quotes {
+						Some(format!("\"{}\"", s))
+					} else {
+						Some(s.to_string())
+					})
+				}
+			})
+			.filter_map(|x| x)
+			.collect();
+
+		BrowserPath(elements)
 	}
 }
 
