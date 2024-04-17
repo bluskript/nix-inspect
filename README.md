@@ -39,18 +39,20 @@ By default, `nix-inspect` will try to load your config where it is, by default t
 
 ### Key Bindings
 
-| Key             | Behavior            |
-| --------------- | ------------------- |
-| q               | Exit                |
-| h / left arrow  | Navigate up a level |
-| j / down arrow  | Select lower item   |
-| k / up arrow    | Select upper item   |
-| l / right arrow | Enter selected item |
-| f / "/"         | Search              |
-| ctrl+d          | Half-Page Down      |
-| ctrl+u          | Half-Page Up        |
-| s               | Save bookmark       |
-| .               | Path Navigator mode |
+| Key             | Behavior                  |
+| --------------- | -------------------       |
+| q               | Exit                      |
+| h / left arrow  | Navigate up a level       |
+| j / down arrow  | Select lower item         |
+| k / up arrow    | Select upper item         |
+| l / right arrow | Enter selected item       |
+| f / "/"         | Search                    |
+| ctrl+d          | Half-Page Down            |
+| ctrl+u          | Half-Page Up              |
+| s               | Save bookmark             |
+| .               | Path Navigator mode       |
+| n               | Next Search Occurence     |
+| N               | Previous Search Occurence |
 
 
 ### Installation
