@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::{self, Event, KeyCode};
 
 use crate::{
@@ -116,7 +115,8 @@ impl UpdateContext {
 					.entry(p)
 					.and_modify(|x| match (x, data) {
 						(PathData::List(p), PathData::List(d)) => {
-							p.cursor = p.cursor.min(d.list.len()).max(0);
+							let cursor = p.state.selected().unwrap_or(0);
+							p.state.select(Some(cursor.min(d.list.len()).max(0)));
 							p.list = d.list;
 						}
 						x @ _ => *x.0 = x.1,
@@ -147,20 +147,23 @@ impl UpdateContext {
 			Message::PageUp => {
 				if let Some(x) = model.visit_stack.current() {
 					if let Some(list) = model.path_data.current_list_mut(x) {
-						list.cursor = list
-							.cursor
-							.saturating_sub(view_data.current_list_height.max(1) as usize / 2)
-							as usize;
+						let cursor = list.state.selected().unwrap_or(0);
+						list.state.select(Some(
+							cursor.saturating_sub(view_data.current_list_height.max(1) as usize / 2)
+								as usize,
+						));
 					}
 				}
 			}
 			Message::PageDown => {
 				if let Some(x) = model.visit_stack.current() {
 					if let Some(list) = model.path_data.current_list_mut(x) {
-						list.cursor = (list.cursor
-							+ (view_data.current_list_height.max(1) / 2) as usize)
-							.max(0)
-							.min(list.list.len() - 1);
+						let cursor = list.state.selected().unwrap_or(0);
+						*list.state.selected_mut() = Some(
+							(cursor + (view_data.current_list_height.max(1) / 2) as usize)
+								.max(0)
+								.min(list.list.len() - 1),
+						);
 					}
 				}
 			}
@@ -173,27 +176,22 @@ impl UpdateContext {
 						},
 						None => return Ok(None),
 					};
+					let cursor = current_list.state.selected().unwrap_or(0);
 					if let Some((_, (i, _))) = match msg {
 						Message::SearchNext => current_list
 							.list
 							.iter()
 							.enumerate()
-							.skip(current_list.cursor + 1)
-							.closest_item(
-								|(_, x)| x.contains(&input_model.input),
-								0,
-							),
+							.skip(cursor + 1)
+							.closest_item(|(_, x)| x.contains(&input_model.input), 0),
 						_ => current_list
 							.list
 							.iter()
 							.enumerate()
-							.take(current_list.cursor)
-							.closest_item(
-								|(_, x)| x.contains(&input_model.input),
-								current_list.cursor,
-							),
+							.take(cursor)
+							.closest_item(|(_, x)| x.contains(&input_model.input), cursor),
 					} {
-						current_list.cursor = i;
+						current_list.state.select(Some(i));
 					}
 					self.maybe_reeval_selection(model);
 				}
@@ -220,9 +218,9 @@ impl UpdateContext {
 							};
 							if let Some((i, _)) = current_list.list.iter().closest_item(
 								|x| x.contains(&input_model.input),
-								current_list.cursor,
+								current_list.state.selected().unwrap_or(0),
 							) {
-								current_list.cursor = i;
+								*current_list.state.selected_mut() = Some(i);
 							}
 							self.maybe_reeval_selection(model);
 						}
@@ -237,7 +235,7 @@ impl UpdateContext {
 					.visit_stack
 					.current()
 					.and_then(|x| model.path_data.current_list(x))
-					.and_then(|x| x.list.get(x.cursor).cloned())
+					.and_then(|x| x.list.get(x.state.selected().unwrap_or(0)).cloned())
 					.unwrap_or("".to_string());
 				model.new_bookmark_input = InputState::Active(InputModel {
 					typing: false,
@@ -259,29 +257,24 @@ impl UpdateContext {
 					if let Some(parent) = path.parent() {
 						if let Some(PathData::List(current_list)) = model.path_data.get_mut(&parent)
 						{
+							let cursor = current_list.state.selected().unwrap_or(0);
 							let tab_prefix = path.0.last().unwrap();
 							if let Some((_, (i, _))) = match msg {
 								Message::NavigatorNext => current_list
 									.list
 									.iter()
 									.enumerate()
-									.skip(current_list.cursor + 1)
-									.closest_item(
-										|(_, x)| x.starts_with(tab_prefix),
-										0,
-									),
+									.skip(cursor + 1)
+									.closest_item(|(_, x)| x.starts_with(tab_prefix), 0),
 								_ => current_list
 									.list
 									.iter()
 									.enumerate()
-									.take(current_list.cursor)
+									.take(cursor)
 									.rev()
-									.closest_item(
-										|(_, x)| x.contains(tab_prefix),
-										current_list.cursor,
-									),
+									.closest_item(|(_, x)| x.contains(tab_prefix), cursor),
 							} {
-								current_list.cursor = i;
+								*current_list.state.selected_mut() = Some(i);
 							}
 							self.maybe_reeval_selection(model);
 						}
@@ -330,7 +323,7 @@ impl UpdateContext {
 
 									if let Some(nearest_occurrence_index) = nearest_occurrence_index
 									{
-										parent_list.cursor = nearest_occurrence_index;
+										parent_list.state.select(Some(nearest_occurrence_index));
 									}
 								}
 							}
@@ -341,6 +334,7 @@ impl UpdateContext {
 								if let Some(PathData::List(parent_list)) =
 									model.path_data.get_mut(&parent)
 								{
+									let cursor = parent_list.state.selected().unwrap_or(0);
 									let tab_prefix = model
 										.prev_tab_completion
 										.as_ref()
@@ -350,7 +344,7 @@ impl UpdateContext {
 											.list
 											.iter()
 											.enumerate()
-											.skip(parent_list.cursor + 1)
+											.skip(cursor + 1)
 											.find(|(_, x)| x.starts_with(tab_prefix))
 											.map(|(i, _)| i)
 											.or_else(|| {
@@ -366,7 +360,7 @@ impl UpdateContext {
 											.list
 											.iter()
 											.enumerate()
-											.take(parent_list.cursor)
+											.take(parent_list.state.selected().unwrap_or(0))
 											.rev()
 											.find(|(_, x)| x.starts_with(tab_prefix))
 											.map(|(i, _)| i)
@@ -375,7 +369,7 @@ impl UpdateContext {
 													.list
 													.iter()
 													.enumerate()
-													.skip(parent_list.cursor + 1)
+													.skip(cursor + 1)
 													.rev()
 													.find(|(_, x)| x.starts_with(tab_prefix))
 													.map(|(i, _)| i)
@@ -387,7 +381,7 @@ impl UpdateContext {
 										if model.prev_tab_completion.is_none() {
 											model.prev_tab_completion = Some(tab_prefix.clone());
 										}
-										parent_list.cursor = nearest_occurrence_index;
+										parent_list.state.select(Some(nearest_occurrence_index));
 										let nearest_occurrence =
 											&parent_list.list[nearest_occurrence_index];
 										let new_path =
@@ -465,7 +459,7 @@ impl UpdateContext {
 					if let Some(selected_item) = model
 						.path_data
 						.current_list(&p)
-						.and_then(|list| list.list.get(list.cursor))
+						.and_then(|list| list.state.selected().and_then(|i| list.list.get(i)))
 					{
 						let x = p.child(selected_item.clone());
 						self.maybe_reeval_selection_browser(&x, model);
@@ -493,7 +487,8 @@ impl UpdateContext {
 					}
 					BrowserStackItem::BrowserPath(p) => {
 						if let Some(list) = model.path_data.current_list_mut(&p) {
-							list.cursor = prev(list.cursor, list.list.len());
+							let cursor = list.state.selected().unwrap_or(0);
+							list.state.select(Some(prev(cursor, list.list.len())));
 						}
 					}
 					BrowserStackItem::Bookmarks => {
@@ -519,7 +514,8 @@ impl UpdateContext {
 					}
 					BrowserStackItem::BrowserPath(p) => {
 						if let Some(list) = model.path_data.current_list_mut(&p) {
-							list.cursor = next(list.cursor, list.list.len());
+							let cursor = list.state.selected().unwrap_or(0);
+							list.state.select(Some(next(cursor, list.list.len())));
 							let selected = list.selected(&p);
 							if let Some(selected) = selected {
 								if model.path_data.get(&selected).is_none() {

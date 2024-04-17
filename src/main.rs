@@ -136,14 +136,14 @@ fn main() -> color_eyre::Result<()> {
 	tracing::debug!("{}", expr);
 
 	let worker_host = WorkerHost::new(expr);
-	let model = Arc::new(RwLock::new(Model {
+	let mut model = Model {
 		running_state: RunningState::Running,
 		visit_stack: BrowserStack(vec![BrowserStackItem::Root]),
 		root_view_state: ListState::default().with_selected(Some(0)),
 		bookmark_view_state: ListState::default().with_selected(Some(0)),
 		config,
 		..Default::default()
-	}));
+	};
 
 	let mut update_context = UpdateContext {
 		req_tx: worker_host.tx.clone(),
@@ -165,11 +165,11 @@ fn main() -> color_eyre::Result<()> {
 		});
 	}
 
-	while model.read().running_state != RunningState::Stopped {
+	while model.running_state != RunningState::Stopped {
 		// Render the current view
 		let mut view_data: ViewData = ViewData::default();
 		terminal.draw(|f| {
-			view_data = view(&model.read(), f);
+			view_data = view(&mut model, f);
 		})?;
 
 		let mut current_msg = Some(rx.recv()?);
@@ -177,7 +177,7 @@ fn main() -> color_eyre::Result<()> {
 		// Process updates as long as they return a non-None message
 		while let Some(msg) = current_msg {
 			tracing::info!("{:?}", msg);
-			if let Ok(msg) = update_context.update(&view_data, &mut model.write(), msg) {
+			if let Ok(msg) = update_context.update(&view_data, &mut model, msg) {
 				current_msg = msg;
 			} else {
 				current_msg = None;

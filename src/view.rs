@@ -1,7 +1,7 @@
 use ansi_to_tui::IntoText;
 use lazy_static::lazy_static;
 use ratatui::text::Text;
-use ratatui::widgets::{Clear, ListState, Widget, Wrap};
+use ratatui::widgets::{Clear, Widget, Wrap};
 use ratatui::Frame;
 
 use ratatui::{
@@ -12,7 +12,9 @@ use ratatui::{
 	widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::model::{BrowserPath, BrowserStackItem, InputState, ListData, Model, PathData};
+use crate::model::{
+	BrowserPath, BrowserStackItem, InputState, ListData, Model, PathData, PathDataMap,
+};
 
 /// View data that should be provided to the update handler (for page-up / page-down behavior)
 #[derive(Default)]
@@ -20,7 +22,7 @@ pub struct ViewData {
 	pub current_list_height: u16,
 }
 
-pub fn view(model: &Model, f: &mut Frame) -> ViewData {
+pub fn view(model: &mut Model, f: &mut Frame) -> ViewData {
 	let path_rect = Layout::default()
 		.direction(Direction::Vertical)
 		.constraints(Constraint::from_mins([1, 1]))
@@ -59,8 +61,8 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 		Rect::new(path_rect.x + 1, path_rect.y, path_rect.width - 1, 1),
 	);
 
-	match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
-		BrowserStackItem::BrowserPath(p) => match model.path_data.get(&p) {
+	match model.visit_stack.last().cloned().unwrap_or(BrowserStackItem::Root) {
+		BrowserStackItem::BrowserPath(p) => match model.path_data.get_mut(&p) {
 			Some(data) if !matches!(data, PathData::List(_)) => {
 				let block = Block::new()
 					.borders(Borders::ALL)
@@ -85,14 +87,14 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 				if let Some(PathData::List(current_path_data)) = x {
 					let _ = render_list(
 						f,
-						&current_path_data,
+						current_path_data,
 						inner,
 						Some(&model.search_input),
 						Some(&model.path_navigator_input),
 						&model.prev_tab_completion,
 					);
 				}
-				let _ = render_preview(f, model, miller_layout[2], p);
+				let _ = render_preview(f, model, miller_layout[2], &p);
 			}
 		},
 		x @ _ => {
@@ -120,7 +122,7 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 						// Root
 						Some(2) => {
 							if let Some(PathData::List(current_list_data)) =
-								model.path_data.get(&BrowserPath::from("".to_string()))
+								model.path_data.get_mut(&BrowserPath::from("".to_string()))
 							{
 								render_list(
 									f,
@@ -138,20 +140,25 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 				BrowserStackItem::Bookmarks => {
 					render_bookmarks(model, f, current_inner);
 
-					if let Some(data) = model
-						.selected_bookmark()
-						.and_then(|x| model.path_data.get(&x.path))
+					let selected_bookmark_index = model.bookmark_view_state.selected();
+
+					if let Some(bookmark) =
+						selected_bookmark_index.and_then(|i| model.config.bookmarks.get(i))
 					{
-						render_value_preview(f, data, preview_inner);
+						let path = bookmark.path.clone();
+						if let Some(data) = model.path_data.get_mut(&path) {
+							render_value_preview(f, data, preview_inner);
+						}
 					}
 				}
 				BrowserStackItem::Recents => {
 					render_recents(model, f, current_inner);
-					if let Some(data) = model
-						.selected_bookmark()
-						.and_then(|x| model.path_data.get(&x.path))
-					{
-						render_value_preview(f, data, preview_inner);
+					let selected_recent_index = model.recents_view_state.selected();
+					if let Some(path) = selected_recent_index.and_then(|i| model.recents.get(i)) {
+						let path = path.clone();
+						if let Some(data) = model.path_data.get_mut(&path) {
+							render_value_preview(f, data, preview_inner);
+						}
 					}
 				}
 				BrowserStackItem::BrowserPath(_) => unreachable!(),
@@ -169,9 +176,11 @@ pub fn view(model: &Model, f: &mut Frame) -> ViewData {
 	view_data
 }
 
-pub fn render_previous_stack(model: &Model, f: &mut Frame, inner: Rect) {
+pub fn render_previous_stack(model: &mut Model, f: &mut Frame, inner: Rect) {
 	match model.visit_stack.prev_item() {
-		Some(BrowserStackItem::BrowserPath(p)) => render_previous_list(f, model, inner, p),
+		Some(BrowserStackItem::BrowserPath(p)) => {
+			render_previous_list(f, &mut model.path_data, inner, p)
+		}
 		Some(BrowserStackItem::Bookmarks) => render_bookmarks(model, f, inner),
 		Some(BrowserStackItem::Root) => render_root(model, f, inner),
 		Some(BrowserStackItem::Recents) => render_recents(model, f, inner),
@@ -183,27 +192,27 @@ pub fn with_selected_style(x: List) -> List {
 	x.highlight_symbol(">>").highlight_style(*SELECTED_STYLE)
 }
 
-pub fn render_root(model: &Model, f: &mut Frame, inner: Rect) {
+pub fn render_root(model: &mut Model, f: &mut Frame, inner: Rect) {
 	f.render_stateful_widget(
 		with_selected_style(List::new(["Bookmarks", "Recents", "Root"])),
 		inner,
-		&mut model.root_view_state.clone(),
+		&mut model.root_view_state,
 	);
 }
 
-pub fn render_recents(model: &Model, f: &mut Frame, inner: Rect) {
+pub fn render_recents(model: &mut Model, f: &mut Frame, inner: Rect) {
 	f.render_stateful_widget(
 		with_selected_style(List::new(model.recents.iter().map(|x| x.to_expr()))),
 		inner,
-		&mut model.recents_view_state.clone(),
+		&mut model.recents_view_state,
 	)
 }
 
-pub fn render_bookmarks(model: &Model, f: &mut Frame, inner: Rect) {
+pub fn render_bookmarks(model: &mut Model, f: &mut Frame, inner: Rect) {
 	f.render_stateful_widget(
 		with_selected_style(List::new(model.config.bookmarks.clone())),
 		inner,
-		&mut model.bookmark_view_state.clone(),
+		&mut model.bookmark_view_state,
 	)
 }
 
@@ -226,7 +235,7 @@ lazy_static! {
 
 pub fn render_list(
 	f: &mut Frame,
-	list: &ListData,
+	list: &mut ListData,
 	inner: Rect,
 	search_input: Option<&InputState>,
 	path_navigator_input: Option<&InputState>,
@@ -238,7 +247,7 @@ pub fn render_list(
 		.iter()
 		.enumerate()
 		.map(|(i, x)| {
-			let highlight_style = if i == list.cursor {
+			let highlight_style = if Some(i) == list.state.selected() {
 				selected_style
 			} else {
 				Style::default()
@@ -269,16 +278,17 @@ pub fn render_list(
 		})
 		.collect();
 
-	f.render_stateful_widget(
-		List::new(render_list),
-		inner,
-		&mut ListState::default().with_selected(Some(list.cursor)),
-	);
+	f.render_stateful_widget(List::new(render_list), inner, &mut list.state);
 }
 
 /// TODO: unify with other list code
-pub fn render_previous_list(f: &mut Frame, model: &Model, inner: Rect, p: &BrowserPath) {
-	let list = match model.path_data.get(&p) {
+pub fn render_previous_list(
+	f: &mut Frame,
+	path_data: &mut PathDataMap,
+	inner: Rect,
+	p: &BrowserPath,
+) {
+	let list = match path_data.get_mut(&p) {
 		Some(PathData::List(list)) => list,
 		_ => return,
 	};
@@ -286,7 +296,7 @@ pub fn render_previous_list(f: &mut Frame, model: &Model, inner: Rect, p: &Brows
 	f.render_stateful_widget(
 		with_selected_style(List::new(list.list.clone())),
 		inner,
-		&mut ListState::default().with_selected(Some(list.cursor)),
+		&mut list.state,
 	);
 }
 
@@ -298,7 +308,11 @@ pub fn render_keymap(model: &Model, f: &mut Frame, rect: Rect) {
 	};
 	let keymap: &[(&str, &str)] = match typing {
 		Some(true) => &[("<Enter>", "Confirm"), ("<Esc>", "Exit Search")],
-		Some(false) => &[("n", "Next Occurence"), ("N", "Previous Occurence"), ("<Esc>", "Exit Search")],
+		Some(false) => &[
+			("n", "Next Occurence"),
+			("N", "Previous Occurence"),
+			("<Esc>", "Exit Search"),
+		],
 		None => &[
 			(".", "Go To Path"),
 			("/", "Find"),
@@ -384,7 +398,7 @@ pub fn render_bottom(f: &mut Frame, model: &Model, inner: Rect) {
 	}
 }
 
-pub fn render_value_preview(f: &mut Frame, path_data: &PathData, inner: Rect) {
+pub fn render_value_preview(f: &mut Frame, path_data: &mut PathData, inner: Rect) {
 	match path_data {
 		// NixValue::Attrs(list) => {
 		//     let items = list.iter().map(|(k, _v)| {
@@ -430,7 +444,7 @@ pub fn preview_frame<'a>() -> Block<'a> {
 		.title_style(Style::new().blue())
 }
 
-pub fn render_preview(f: &mut Frame, model: &Model, outer: Rect, current_path: &BrowserPath) {
+pub fn render_preview(f: &mut Frame, model: &mut Model, outer: Rect, current_path: &BrowserPath) {
 	let mut block = preview_frame();
 
 	let selected_path = model
@@ -439,11 +453,11 @@ pub fn render_preview(f: &mut Frame, model: &Model, outer: Rect, current_path: &
 		.and_then(|list| list.selected(&current_path));
 
 	if let Some(selected_path) = selected_path {
-		if let Some(value) = model.path_data.get(&selected_path) {
+		if let Some(value) = model.path_data.get_mut(&selected_path) {
 			block = block.title(value.get_type());
 			let inner = block.inner(outer);
 			f.render_widget(block, outer);
-			render_value_preview(f, &value, inner);
+			render_value_preview(f, value, inner);
 			return;
 		}
 	}

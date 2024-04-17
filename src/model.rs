@@ -55,13 +55,13 @@ impl Model {
 			new_stack.push(BrowserStackItem::BrowserPath(parent.clone()));
 			if let Some(PathData::List(list)) = self.path_data.get_mut(&parent) {
 				if let Some(pos) = list.list.iter().position(|x| x == path.0.last().unwrap()) {
-					list.cursor = pos;
+					list.state.select(Some(pos));
 				}
 			}
 			path = parent;
 		}
 		new_stack.push(BrowserStackItem::Root);
-		*self.root_view_state.selected_mut() = Some(2);
+		self.root_view_state.select(Some(2));
 		new_stack.reverse();
 		*self.visit_stack = new_stack;
 	}
@@ -294,15 +294,16 @@ pub enum ListType {
 
 #[derive(Debug, Clone)]
 pub struct ListData {
-	pub cursor: usize,
+	pub state: ListState,
 	pub list_type: ListType,
 	pub list: Vec<String>,
 }
 
 impl ListData {
 	pub fn selected(&self, current_path: &BrowserPath) -> Option<BrowserPath> {
-		self.list
-			.get(self.cursor)
+		self.state
+			.selected()
+			.and_then(|i| self.list.get(i))
 			.map(|x| current_path.child(x.to_string()))
 	}
 }
@@ -354,12 +355,12 @@ impl From<NixValue> for PathData {
 			NixValue::Null => PathData::Null,
 			NixValue::Attrs(attrs) => PathData::List(ListData {
 				list_type: ListType::Attrset,
-				cursor: 0,
+				state: ListState::default().with_selected(Some(0)),
 				list: attrs,
 			}),
 			NixValue::List(size) => PathData::List(ListData {
 				list_type: ListType::List,
-				cursor: 0,
+				state: ListState::default().with_selected(Some(0)),
 				list: (0..size).map(|i| format!("{}", i)).collect(),
 			}),
 			NixValue::Function => PathData::Function,
@@ -386,7 +387,7 @@ impl PathData {
 			PathData::Function => "Function",
 			PathData::External => "External",
 			PathData::Loading => "Loading",
-			PathData::Error(reason) => "Error",
+			PathData::Error(_) => "Error",
 		}
 		.to_string()
 	}
