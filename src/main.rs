@@ -18,7 +18,6 @@ use crossterm::{
 use key_handler::register_key_handler;
 use logging::{initialize_logging, project_directory};
 use model::{Bookmark, BrowserPath, BrowserStack, BrowserStackItem, Message, Model, RunningState};
-use parking_lot::RwLock;
 use ratatui::{backend::CrosstermBackend, widgets::ListState, Terminal};
 use serde::{Deserialize, Serialize};
 use update::UpdateContext;

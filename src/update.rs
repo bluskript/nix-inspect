@@ -34,7 +34,6 @@ impl UpdateContext {
 
 	pub fn maybe_reeval_path(&self, path: &BrowserPath, model: &Model) {
 		if model.path_data.get(&path).is_none() {
-			let req_tx = self.req_tx.clone();
 			let path = path.clone();
 			self.queue_reeval(&path);
 		}

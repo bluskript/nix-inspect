@@ -1,5 +1,6 @@
 use ansi_to_tui::IntoText;
 use lazy_static::lazy_static;
+use ratatui::layout::Flex;
 use ratatui::text::Text;
 use ratatui::widgets::{Clear, Widget, Wrap};
 use ratatui::Frame;
@@ -25,11 +26,11 @@ pub struct ViewData {
 pub fn view(model: &mut Model, f: &mut Frame) -> ViewData {
 	let path_rect = Layout::default()
 		.direction(Direction::Vertical)
-		.constraints(Constraint::from_mins([1, 1]))
+		.constraints(vec![Constraint::Length(1), Constraint::Fill(1)])
 		.split(f.size());
 	let miller_layout = Layout::default()
 		.direction(Direction::Horizontal)
-		.constraints(Constraint::from_percentages([20, 40, 20]))
+		.constraints(vec![Constraint::Percentage(20), Constraint::Fill(1), Constraint::Percentage(30)])
 		.split(path_rect[1]);
 
 	let previous_list_block =
