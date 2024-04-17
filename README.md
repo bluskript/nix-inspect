@@ -54,7 +54,7 @@ By default, `nix-inspect` will try to load your config where it is, by default t
 
 
 ### Installation
-As of now the project remains unpackaged in `nixpkgs`, so the recommended installation method is through flakes:
+This project has been added to nixpkgs, but there may have been changes not yet landed there. It is recommended to use nix-inspect as a flake like so:
 ```nix
 {
   inputs = {
