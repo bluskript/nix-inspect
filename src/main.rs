@@ -151,7 +151,7 @@ fn main() -> color_eyre::Result<()> {
 	};
 
 	let (tx, rx) = kanal::unbounded::<Message>();
-	register_key_handler(&tx, Arc::clone(&model));
+	register_key_handler(&tx);
 
 	{
 		let worker_rx = worker_host.rx.clone();

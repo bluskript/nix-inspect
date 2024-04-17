@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 
-use crossterm::event::KeyCode;
+use color_eyre::owo_colors::OwoColorize;
+use crossterm::event::{self, Event, KeyCode};
 
 use crate::{
+	key_handler::handle_key,
 	model::{
 		next, prev, select_next, select_prev, Bookmark, BrowserPath, BrowserStackItem, InputModel,
 		InputState, Message, Model, PathData, RunningState,
@@ -97,6 +99,16 @@ impl UpdateContext {
 		msg: Message,
 	) -> color_eyre::Result<Option<Message>> {
 		match msg {
+			Message::TermEvent(event) => match event {
+				Event::Key(key) => {
+					if key.kind == event::KeyEventKind::Press {
+						if let Some(msg) = handle_key(key, &model) {
+							return Ok(Some(msg));
+						}
+					}
+				}
+				_ => {}
+			},
 			Message::Data(p, d) => {
 				let data = d.clone();
 				model
@@ -152,9 +164,43 @@ impl UpdateContext {
 					}
 				}
 			}
+			Message::SearchNext | Message::SearchPrev => {
+				if let InputState::Active(ref mut input_model) = model.search_input {
+					let current_list = match model.visit_stack.current().cloned() {
+						Some(x) => match model.path_data.current_list_mut(&x) {
+							Some(x) => x,
+							None => return Ok(None),
+						},
+						None => return Ok(None),
+					};
+					if let Some((_, (i, _))) = match msg {
+						Message::SearchNext => current_list
+							.list
+							.iter()
+							.enumerate()
+							.skip(current_list.cursor + 1)
+							.closest_item(
+								|(_, x)| x.contains(&input_model.input),
+								0,
+							),
+						_ => current_list
+							.list
+							.iter()
+							.enumerate()
+							.take(current_list.cursor)
+							.closest_item(
+								|(_, x)| x.contains(&input_model.input),
+								current_list.cursor,
+							),
+					} {
+						current_list.cursor = i;
+					}
+					self.maybe_reeval_selection(model);
+				}
+			}
 			Message::SearchEnter => {
 				model.search_input = InputState::Active(InputModel {
-					typing: false,
+					typing: true,
 					input: "".to_string(),
 					cursor_position: 0,
 				});
@@ -172,12 +218,11 @@ impl UpdateContext {
 								},
 								None => return Ok(None),
 							};
-							if let Some(position) = current_list
-								.list
-								.iter()
-								.closest_item(&input_model.input, current_list.cursor)
-							{
-								current_list.cursor = position;
+							if let Some((i, _)) = current_list.list.iter().closest_item(
+								|x| x.contains(&input_model.input),
+								current_list.cursor,
+							) {
+								current_list.cursor = i;
 							}
 							self.maybe_reeval_selection(model);
 						}
@@ -208,6 +253,41 @@ impl UpdateContext {
 					x.handle_key_event(key);
 				}
 			}
+			Message::NavigatorNext | Message::NavigatorPrev => {
+				if let InputState::Active(ref mut input_model) = model.path_navigator_input {
+					let path = BrowserPath::from(input_model.input.clone());
+					if let Some(parent) = path.parent() {
+						if let Some(PathData::List(current_list)) = model.path_data.get_mut(&parent)
+						{
+							let tab_prefix = path.0.last().unwrap();
+							if let Some((_, (i, _))) = match msg {
+								Message::NavigatorNext => current_list
+									.list
+									.iter()
+									.enumerate()
+									.skip(current_list.cursor + 1)
+									.closest_item(
+										|(_, x)| x.starts_with(tab_prefix),
+										0,
+									),
+								_ => current_list
+									.list
+									.iter()
+									.enumerate()
+									.take(current_list.cursor)
+									.rev()
+									.closest_item(
+										|(_, x)| x.contains(tab_prefix),
+										current_list.cursor,
+									),
+							} {
+								current_list.cursor = i;
+							}
+							self.maybe_reeval_selection(model);
+						}
+					}
+				}
+			}
 			Message::NavigatorEnter => {
 				let current_path = model.visit_stack.current();
 				let path_str = ".".to_string()
@@ -215,7 +295,7 @@ impl UpdateContext {
 						.map(|x| x.to_expr() + if x.0.len() > 1 { "." } else { "" })
 						.unwrap_or("nixosConfigurations.".to_string());
 				model.path_navigator_input = InputState::Active(InputModel {
-					typing: false,
+					typing: true,
 					cursor_position: path_str.len(),
 					input: path_str,
 				})
@@ -235,6 +315,24 @@ impl UpdateContext {
 								model.update_parent_selection(new_path);
 								self.maybe_reeval_parent(model);
 								self.maybe_reeval_selection(model);
+							}
+							if let Some(parent) = path.parent() {
+								if let Some(PathData::List(parent_list)) =
+									model.path_data.get_mut(&parent)
+								{
+									let tab_prefix = path.0.last().unwrap();
+									let nearest_occurrence_index = parent_list
+										.list
+										.iter()
+										.enumerate()
+										.find(|(_, x)| x.starts_with(tab_prefix))
+										.map(|(i, _)| i);
+
+									if let Some(nearest_occurrence_index) = nearest_occurrence_index
+									{
+										parent_list.cursor = nearest_occurrence_index;
+									}
+								}
 							}
 						}
 						KeyCode::Tab | KeyCode::BackTab => {
@@ -340,7 +438,8 @@ impl UpdateContext {
 					self.maybe_reeval_selection(model);
 				}
 			}
-			Message::Enter => match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root) {
+			Message::EnterItem => match model.visit_stack.last().unwrap_or(&BrowserStackItem::Root)
+			{
 				BrowserStackItem::Root => {
 					match model.root_view_state.selected() {
 						Some(0) => {
@@ -439,7 +538,6 @@ impl UpdateContext {
 				}
 				self.maybe_reeval_current_selection(&x, model);
 			}
-			Message::Resize => {}
 			Message::Quit => model.running_state = RunningState::Stopped,
 		};
 		Ok(None)
@@ -449,21 +547,27 @@ impl UpdateContext {
 /// Returns the closest item to a specific index
 /// Used for search in lists to make it not jump around as much
 trait ClosestItem {
-	fn closest_item(self, search_text: &String, pos: usize) -> Option<usize>
+	type Item;
+
+	fn closest_item<P>(self, predicate: P, pos: usize) -> Option<(usize, Self::Item)>
 	where
-		Self: Sized;
+		Self: Sized,
+		P: FnMut(&Self::Item) -> bool;
 }
 
 impl<I> ClosestItem for I
 where
 	I: Iterator,
-	I::Item: AsRef<str>,
 {
-	fn closest_item(self, search_text: &String, pos: usize) -> Option<usize> {
+	type Item = I::Item;
+
+	fn closest_item<P>(self, mut predicate: P, pos: usize) -> Option<(usize, Self::Item)>
+	where
+		P: FnMut(&Self::Item) -> bool,
+	{
 		self.enumerate()
-			.filter(|(_, x)| x.as_ref().contains(search_text))
-			.map(|(i, _)| i)
-			.min_by(|i, j| {
+			.filter(|(_, x)| predicate(x))
+			.min_by(|(i, _), (j, _)| {
 				let cmp_i = pos as i32 - *i as i32;
 				let cmp_j = pos as i32 - *j as i32;
 				cmp_i.abs().cmp(&cmp_j.abs())

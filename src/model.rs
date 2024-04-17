@@ -137,6 +137,7 @@ impl BrowserStack {
 
 #[derive(Debug)]
 pub enum Message {
+	TermEvent(crossterm::event::Event),
 	Data(BrowserPath, PathData),
 	CurrentPath(BrowserPath),
 	Refresh,
@@ -154,10 +155,13 @@ pub enum Message {
 	CreateBookmark,
 	DeleteBookmark,
 	Back,
-	Enter,
+	EnterItem,
 	ListUp,
 	ListDown,
-	Resize,
+	SearchNext,
+	SearchPrev,
+	NavigatorNext,
+	NavigatorPrev,
 	Quit,
 }
 

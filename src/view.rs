@@ -290,17 +290,26 @@ pub fn render_previous_list(f: &mut Frame, model: &Model, inner: Rect, p: &Brows
 	);
 }
 
-pub fn render_keymap(f: &mut Frame, rect: Rect) {
-	let keymap = [
-		(".", "Go To Path"),
-		("/", "Find"),
-		("r", "Refresh"),
-		("s", "Save Bookmark"),
-		("d", "Delete Bookmark"),
-		("q", "Quit"),
-		("<C-d>", "Half-page down"),
-		("<C-u>", "Half-page up"),
-	];
+pub fn render_keymap(model: &Model, f: &mut Frame, rect: Rect) {
+	let typing = match (&model.path_navigator_input, &model.search_input) {
+		(InputState::Active(m), _) => Some(m.typing),
+		(_, InputState::Active(m)) => Some(m.typing),
+		_ => None,
+	};
+	let keymap: &[(&str, &str)] = match typing {
+		Some(true) => &[("<Enter>", "Confirm"), ("<Esc>", "Exit Search")],
+		Some(false) => &[("n", "Next Occurence"), ("N", "Previous Occurence"), ("<Esc>", "Exit Search")],
+		None => &[
+			(".", "Go To Path"),
+			("/", "Find"),
+			("r", "Refresh"),
+			("s", "Save Bookmark"),
+			("d", "Delete Bookmark"),
+			("q", "Quit"),
+			("<C-d>", "Half-page down"),
+			("<C-u>", "Half-page up"),
+		],
+	};
 	let texts = keymap
 		.iter()
 		.map(|(key, text)| {
@@ -331,6 +340,7 @@ pub fn render_bottom(f: &mut Frame, model: &Model, inner: Rect) {
 	let mut offset = 1;
 
 	render_keymap(
+		model,
 		f,
 		Rect::new(inner.left(), inner.bottom() - offset, inner.width, 1),
 	);
