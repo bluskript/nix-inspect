@@ -3,6 +3,7 @@
 ### 0.1.2
 
 - Hotfixed a dependency issue with ansi-to-tui which breaks builds
+- Adjusted how paths are loaded by default to load cwd if /etc/nixos is unavailable
 
 ### 0.1.1
 
