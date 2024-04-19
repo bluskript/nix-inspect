@@ -53,9 +53,8 @@ pub fn find_in_nix_path() -> color_eyre::Result<String> {
 	Ok(x.split(":")
 		.filter_map(|x| x.split_once("="))
 		.find(|(x, _)| x == &"nixos-config")
-		.ok_or_eyre("nixos-config not found in path")?
-		.1
-		.to_string())
+		.map(|(_, v)| v.to_string())
+		.unwrap_or_else(|| ".".to_string()))
 }
 
 fn load_config(args: &Args) -> color_eyre::Result<String> {
@@ -77,9 +76,17 @@ fn load_config(args: &Args) -> color_eyre::Result<String> {
 		if etc_nixos_flake.exists() {
 			Ok(format!(r#"builtins.getFlake "{}""#, nixos_path.display()))
 		} else {
-			let path = find_in_nix_path().unwrap_or("/etc/nixos".to_string());
-			let path = Path::new(&path).canonicalize()?;
-			Ok(format!("(import <nixpkgs/nixos>) {{ system = builtins.currentSystem; configuration = import {}; }}", path.display()))
+			let path = find_in_nix_path()?;
+			let path = Path::new(&path)
+				.canonicalize()
+				.unwrap_or(".".into())
+				.canonicalize()?;
+			let flake_path = path.join("flake.nix");
+			if flake_path.exists() {
+				Ok(format!(r#"builtins.getFlake "{}""#, path.display()))
+			} else {
+				Ok(format!("(import <nixpkgs/nixos>) {{ system = builtins.currentSystem; configuration = import {}; }}", path.display()))
+			}
 		}
 	}
 }
