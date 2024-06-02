@@ -30,7 +30,11 @@ pub fn view(model: &mut Model, f: &mut Frame) -> ViewData {
 		.split(f.size());
 	let miller_layout = Layout::default()
 		.direction(Direction::Horizontal)
-		.constraints(vec![Constraint::Percentage(20), Constraint::Fill(1), Constraint::Percentage(30)])
+		.constraints(vec![
+			Constraint::Percentage(20),
+			Constraint::Fill(1),
+			Constraint::Percentage(30),
+		])
 		.split(path_rect[1]);
 
 	let previous_list_block =
@@ -62,7 +66,12 @@ pub fn view(model: &mut Model, f: &mut Frame) -> ViewData {
 		Rect::new(path_rect.x + 1, path_rect.y, path_rect.width - 1, 1),
 	);
 
-	match model.visit_stack.last().cloned().unwrap_or(BrowserStackItem::Root) {
+	match model
+		.visit_stack
+		.last()
+		.cloned()
+		.unwrap_or(BrowserStackItem::Root)
+	{
 		BrowserStackItem::BrowserPath(p) => match model.path_data.get_mut(&p) {
 			Some(data) if !matches!(data, PathData::List(_)) => {
 				let block = Block::new()
