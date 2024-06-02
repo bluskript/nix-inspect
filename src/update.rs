@@ -402,13 +402,19 @@ impl UpdateContext {
 				if let Some(p) = model.visit_stack.current() {
 					if let InputState::Active(state) = &model.new_bookmark_input {
 						let name = &state.input;
+						let target_path = model
+							.visit_stack
+							.current()
+							.and_then(|x| model.path_data.current_list(x))
+							.and_then(|x| x.selected(p));
+
 						model.config.bookmarks.push(Bookmark {
 							display: if name.len() > 0 {
 								name.to_string()
 							} else {
 								p.0.last().unwrap_or(&"".to_string()).clone()
 							},
-							path: p.clone(),
+							path: target_path.unwrap_or(p.clone()),
 						});
 						model.new_bookmark_input = InputState::Normal;
 						save_config(self.config_path.clone(), model.config.clone());
