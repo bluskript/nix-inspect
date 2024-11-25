@@ -6,7 +6,9 @@
 #include <nix/attr-path.hh>
 #include <nix/canon-path.hh>
 #include <nix/command.hh>
+#include <nix/eval-gc.hh>
 #include <nix/eval.hh>
+#include <nix/local-fs-store.hh>
 #include <nix/nixexpr.hh>
 #include <nix/shared.hh>
 #include <nix/store-api.hh>
@@ -80,22 +82,22 @@ std::shared_ptr<Value> NixInspector::inspect(std::string &attrPath) {
   return std::make_shared<Value>(vRes);
 }
 
-int32_t NixInspector::v_int(const Value &value) { return value.integer; }
-float_t NixInspector::v_float(const Value &value) { return value.fpoint; }
-bool NixInspector::v_bool(const Value &value) { return value.boolean; }
+int32_t NixInspector::v_int(const Value &value) { return value.integer(); }
+float_t NixInspector::v_float(const Value &value) { return value.fpoint(); }
+bool NixInspector::v_bool(const Value &value) { return value.boolean(); }
 std::string NixInspector::v_string(const Value &value) {
-  return value.string.c_str;
+  return std::string(value.string_view());
 }
 std::string NixInspector::v_path(const Value &value) {
-  return value._path.path;
+  return value.path().path.c_str();
 }
 nlohmann::json NixInspector::v_repr(const Value &value) {
   switch (value.type()) {
     case nix::nAttrs: {
       auto collected = std::vector<std::string>();
-      for (auto x : *value.attrs) {
+      for (auto x : *value.attrs()) {
         auto name = state->symbols[x.name];
-        collected.push_back(name);
+        collected.push_back(std::string(name));
       }
       return collected;
     }
@@ -103,22 +105,23 @@ nlohmann::json NixInspector::v_repr(const Value &value) {
       return value.listSize();
     }
     case nix::nString:
-      return value.string.c_str;
+      return value.string_view();
     case nix::nPath:
-      return value._path.path;
+      return value.path().path.c_str();
     case nix::nBool:
-      return value.boolean;
+      return value.boolean();
     case nix::nFloat:
-      return value.fpoint;
+      return value.fpoint();
     case nix::nInt:
-      return value.integer;
+      return value.integer();
     case nix::nNull:
       return nullptr;
+    case nix::nExternal:
     case nix::nThunk:
     case nix::nFunction:
-    case nix::nExternal:
       return nullptr;
   }
+  return nullptr;
 }
 
 // std::vector<NixAttr> NixInspector::v_attrs(const Value &value) {
@@ -139,8 +142,9 @@ std::unique_ptr<std::vector<Value>> NixInspector::v_list(const Value &value) {
   return std::make_unique<std::vector<Value>>(collected);
 }
 void init_nix_inspector() {
-  initNix();
-  initGC();
+  nix::initNix();
+  nix::initGC();
+  nix::flake::initLib(nix::flakeSettings);
   logger = new CaptureLogger();
 }
 ValueType NixInspector::v_type(const Value &value) { return value.type(); }
@@ -151,12 +155,9 @@ ValueType NixInspector::v_type(const Value &value) { return value.type(); }
 std::shared_ptr<Value> NixInspector::v_child(
     const Value &value, std::string key
 ) {
-  auto x = value.attrs->get(state->symbols.create(std::string(key)));
+  auto x = value.attrs()->get(state->symbols.create(std::string(key)));
   Value vRes;
-  if (x->value->isThunk()) {
-    x->value->thunk.expr->eval(*state, *x->value->thunk.env, vRes);
-  } else {
-    vRes = *x->value;
-  }
+  state->forceValue(*x->value, x->value->determinePos(noPos));
+  vRes = *x->value;
   return std::make_shared<Value>(vRes);
 }
