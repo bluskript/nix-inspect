@@ -23,6 +23,7 @@ nix_all = [ dependency('nix-expr')
           , dependency('nix-cmd')
           , dependency('nix-store')
           , dependency('nix-main')
+          , dependency('nix-flake')
           ]
 
 nix_inspect = executable(

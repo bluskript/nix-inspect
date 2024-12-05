@@ -35,7 +35,7 @@
               boost
               meson
               nlohmann_json
-              nixVersions.nix_2_19.dev
+              nixVersions.nix_2_24.dev
             ]);
         });
         packages.default = crateOutputs.packages.release;
